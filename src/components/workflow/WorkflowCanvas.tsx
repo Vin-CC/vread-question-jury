@@ -97,15 +97,15 @@ export function WorkflowCanvas({
   });
 
   return (
-    <div className="h-full min-h-[560px] overflow-hidden rounded-[32px] border border-white bg-[#f7f9fe] shadow-[inset_0_0_0_1px_rgba(148,163,184,0.16),0_24px_70px_rgba(79,70,229,0.08)]">
+    <div className="h-full min-h-[calc(100vh-118px)] overflow-hidden rounded-[28px] border border-white bg-[#f7f9fe] shadow-[inset_0_0_0_1px_rgba(148,163,184,0.16),0_24px_70px_rgba(79,70,229,0.08)]">
       <ReactFlow
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
         fitView
-        fitViewOptions={{ padding: 0.12 }}
-        minZoom={0.35}
-        maxZoom={1.2}
+        fitViewOptions={{ padding: 0.03, minZoom: 0.54, maxZoom: 0.92 }}
+        minZoom={0.42}
+        maxZoom={1.35}
         onNodeClick={(_, node) => onSelect(node.id as WorkflowStepKey)}
         proOptions={{ hideAttribution: true }}
       >

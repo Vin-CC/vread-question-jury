@@ -125,7 +125,7 @@ Fast Jury Mode uses one AI provider call to simulate all judges. Strict Multi-Ag
 
 ## AI Provider Configuration
 
-All runtime LLM calls go through `src/lib/ai`. Workflow and jury code call the generic AI gateway, so switching providers is an environment change rather than a code change.
+All runtime LLM calls go through `src/lib/ai`. Workflow and jury code call the generic AI gateway, so switching providers is either an environment change or a per-run UI mode selection.
 
 Environment variables:
 
@@ -169,6 +169,29 @@ The generic `AI_*` model variables take precedence when both are set.
 
 All model responses are parsed as JSON and validated with Zod before use.
 
+### Runtime Demo / Live Toggle
+
+The bottom execution bar has a runtime mode control:
+
+- `Demo`: forces the server to use the deterministic `DemoProvider` for that request.
+- `Live`: asks the server to use the configured live provider from `AI_PROVIDER`, currently `openrouter` or `openai`.
+
+The browser only sends `runtimeRunMode=demo` or `runtimeRunMode=live` in API request bodies. `OPENROUTER_API_KEY` and `OPENAI_API_KEY` are read only on the server and are never exposed to client-side code.
+
+Default UI mode is derived from environment:
+
+- `DEMO_FALLBACK_MODE=true` defaults the UI to Demo.
+- `DEMO_FALLBACK_MODE=false` defaults the UI to Live only when the configured live provider has its API key.
+- `AI_PROVIDER=demo` defaults to Demo. Selecting Live will return a clear configuration error unless a live provider is configured.
+
+If Live mode is selected but the required key is missing, the API returns:
+
+```text
+Live mode is not configured. Add an API key or switch to Demo mode.
+```
+
+The UI keeps the failure visible and offers **Retry in Demo mode** instead of silently hiding the live-provider error.
+
 ### OpenRouter Setup
 
 ```bash
@@ -208,9 +231,9 @@ AI_PROVIDER=demo
 DEMO_FALLBACK_MODE=true
 ```
 
-Demo mode prevents the app from depending on network access, rate limits, or an API key. It provides deterministic question generation outputs, jury results, and rewrite results. The UI labels fallback outputs as **Demo fallback**.
+Demo mode prevents the app from depending on network access, rate limits, or an API key. It provides deterministic question generation outputs, jury results, and rewrite results. The UI labels these runs as **Demo mode**.
 
-If fallback mode is disabled and a live provider call fails, the workflow automatically attempts a deterministic fallback for that step and logs the failure.
+If a Live provider call fails, the workflow shows the live error and offers **Retry in Demo mode** for the failed step.
 
 ## Run Locally
 

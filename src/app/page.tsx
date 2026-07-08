@@ -1,15 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Clipboard, Database, Download, FileJson, ShieldCheck } from "lucide-react";
+import { AlertTriangle, PanelRightClose, PanelRightOpen } from "lucide-react";
+import { clsx } from "clsx";
 import { AppShell } from "@/components/layout/AppShell";
 import { WorkflowCanvas } from "@/components/workflow/WorkflowCanvas";
 import { InspectionPopover } from "@/components/workflow/InspectionPopover";
-import { WorkflowLogs } from "@/components/workflow/WorkflowLogs";
 import { WorkflowSidebar } from "@/components/workflow/WorkflowSidebar";
-import { WorkflowTopBar } from "@/components/workflow/WorkflowTopBar";
 import { WorkflowBottomBar } from "@/components/workflow/WorkflowBottomBar";
-import type { AiProviderName, AiPublicStatus, AiTask } from "@/lib/ai/types";
+import type { AiProviderName, AiPublicStatus, AiTask, RuntimeRunMode } from "@/lib/ai/types";
 import type { JuryInput, JuryMode, JuryResult, RewriteResult } from "@/lib/jury/types";
 import { createInitialSteps, workflowStepKeys } from "@/lib/workflow/nodeDefinitions";
 import { sampleDocuments, sampleToWorkflowData } from "@/lib/workflow/samples";
@@ -51,12 +50,6 @@ function providerLabel(provider?: AiProviderName) {
   return "OpenRouter";
 }
 
-function sourceLabel(result?: { source?: "live" | "fallback"; provider?: AiProviderName }, status?: AiPublicStatus | null) {
-  const provider = result?.provider ?? status?.provider;
-  if (result?.source === "fallback" || provider === "demo" || status?.demoFallbackMode) return "Demo fallback";
-  return `Live ${providerLabel(provider)}`;
-}
-
 function aiTaskForStep(step: WorkflowStepKey): AiTask | undefined {
   if (step === "questionGeneration") return "questionGeneration";
   if (step === "fastJury") return "fastJury";
@@ -83,6 +76,10 @@ export default function Home() {
   const [aiStatus, setAiStatus] = useState<AiPublicStatus | null>(null);
   const [aiStatusError, setAiStatusError] = useState<string | null>(null);
   const [runSummary, setRunSummary] = useState<LocalWorkflowRunSummary | undefined>();
+  const [runtimeRunMode, setRuntimeRunMode] = useState<RuntimeRunMode>("demo");
+  const runtimeRunModeRef = useRef<RuntimeRunMode>("demo");
+  const [lastFailedStep, setLastFailedStep] = useState<WorkflowStepKey | undefined>();
+  const [inspectorHidden, setInspectorHidden] = useState(false);
 
   const selectedStep = steps[selectedKey];
   const selectedQuestion = useMemo(
@@ -92,7 +89,6 @@ export default function Home() {
     [data.generatedQuestions, selectedQuestionId]
   );
   const latestJury = data.strictJuryResult ?? data.fastJuryResult;
-  const integrityReport = data.integrityReport;
   const vreadExport = data.vreadExport;
   const selectedAiResult =
     selectedKey === "questionGeneration"
@@ -104,11 +100,20 @@ export default function Home() {
           : selectedKey === "rewrite"
             ? data.rewrittenQuestion
             : latestJury ?? selectedQuestion;
-  const appSourceLabel = sourceLabel(selectedAiResult, aiStatus);
+  const appSourceLabel =
+    runtimeRunMode === "demo"
+      ? "Demo mode"
+      : `Live ${providerLabel(selectedAiResult?.provider ?? aiStatus?.liveProvider ?? aiStatus?.provider)}`;
   const selectedTask = aiTaskForStep(selectedKey);
   const selectedModel =
     selectedAiResult?.model ?? (selectedTask && aiStatus?.models[selectedTask]) ?? undefined;
-  const selectedProvider = selectedAiResult?.provider ?? aiStatus?.provider;
+  const selectedProvider =
+    runtimeRunMode === "demo" ? "demo" : selectedAiResult?.provider ?? aiStatus?.liveProvider ?? aiStatus?.provider;
+
+  const updateRuntimeRunMode = (mode: RuntimeRunMode) => {
+    runtimeRunModeRef.current = mode;
+    setRuntimeRunMode(mode);
+  };
 
   useEffect(() => {
     let active = true;
@@ -121,6 +126,7 @@ export default function Home() {
           return;
         }
         setAiStatus(body.status);
+        updateRuntimeRunMode(body.status.defaultRuntimeMode);
         setAiStatusError(null);
       })
       .catch((error) => {
@@ -184,9 +190,11 @@ export default function Home() {
     if (!result.provider || !result.model || result.latencyMs === undefined) return undefined;
     return {
       task,
+      requestedRunMode: runtimeRunModeRef.current,
       provider: result.provider,
       model: result.model,
       latencyMs: result.latencyMs,
+      fallbackReason: runtimeRunModeRef.current === "demo" ? "requested demo mode" : undefined,
       usage: result.usage,
     };
   };
@@ -201,6 +209,7 @@ export default function Home() {
     }>
   ) => {
     patchStep(key, { status: "running", startedAt: new Date().toISOString(), error: undefined });
+    setLastFailedStep(undefined);
     log(`Running ${steps[key].label}`, "info", key);
     try {
       const result = await runner();
@@ -219,6 +228,7 @@ export default function Home() {
     } catch (error) {
       const message = error instanceof Error ? error.message : `${steps[key].label} failed.`;
       patchStep(key, { status: "error", error: message, completedAt: new Date().toISOString() });
+      if (runtimeRunModeRef.current === "live") setLastFailedStep(key);
       log(message, "error", key);
       throw error;
     }
@@ -311,28 +321,14 @@ export default function Home() {
     const response = await fetch("/api/jury", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...questionInput(juryQuestion, jurySegment), mode }),
+      body: JSON.stringify({ ...questionInput(juryQuestion, jurySegment), mode, runtimeRunMode: runtimeRunModeRef.current }),
     });
     const body = (await response.json()) as {
       result?: JuryResult;
       error?: string;
       fallbackAvailable?: boolean;
     };
-    if (!response.ok || !body.result) {
-      if (body.fallbackAvailable) {
-        const fallback = await fetch("/api/jury", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...questionInput(juryQuestion, jurySegment), mode, forceFallback: true }),
-        });
-        const fallbackBody = (await fallback.json()) as { result?: JuryResult; error?: string };
-        if (fallback.ok && fallbackBody.result) {
-          log(`Live ${mode} jury failed, used deterministic demo fallback.`, "error", mode === "fast" ? "fastJury" : "strictJury");
-          return fallbackBody.result;
-        }
-      }
-      throw new Error(body.error || `${mode} jury failed.`);
-    }
+    if (!response.ok || !body.result) throw new Error(body.error || `${mode} jury failed.`);
     return body.result;
   };
 
@@ -428,19 +424,10 @@ export default function Home() {
           const response = await fetch("/api/questions/generate", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ segment }),
+            body: JSON.stringify({ segment, runtimeRunMode: runtimeRunModeRef.current }),
           });
-          let body = (await response.json()) as { questions?: GeneratedQuestion[]; error?: string };
-          if (!response.ok || !body.questions) {
-            const fallback = await fetch("/api/questions/generate", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ segment, forceFallback: true }),
-            });
-            body = (await fallback.json()) as { questions?: GeneratedQuestion[]; error?: string };
-            if (!fallback.ok || !body.questions) throw new Error(body.error || "Question generation failed.");
-            log("Live question generation failed, used demo fallback.", "error", "questionGeneration");
-          }
+          const body = (await response.json()) as { questions?: GeneratedQuestion[]; error?: string };
+          if (!response.ok || !body.questions) throw new Error(body.error || "Question generation failed.");
           setSelectedQuestionId(body.questions[0]?.id);
           return {
             input: segment,
@@ -496,25 +483,18 @@ export default function Home() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               ...questionInput(question, segment),
+              runtimeRunMode: runtimeRunModeRef.current,
               result: juryForRewrite
                 ? {
-                    finalDecision: juryForRewrite.finalDecision,
-                    summary: juryForRewrite.summary,
-                    judges: juryForRewrite.judges,
-                  }
+                  finalDecision: juryForRewrite.finalDecision,
+                  summary: juryForRewrite.summary,
+                  judges: juryForRewrite.judges,
+                }
                 : undefined,
             }),
           });
-          let body = (await response.json()) as { rewrite?: RewriteResult; error?: string };
-          if (!response.ok || !body.rewrite) {
-            const fallback = await fetch("/api/rewrite", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ ...questionInput(question, segment), forceFallback: true }),
-            });
-            body = (await fallback.json()) as { rewrite?: RewriteResult; error?: string };
-            if (!fallback.ok || !body.rewrite) throw new Error(body.error || "Rewrite failed.");
-          }
+          const body = (await response.json()) as { rewrite?: RewriteResult; error?: string };
+          if (!response.ok || !body.rewrite) throw new Error(body.error || "Rewrite failed.");
           return {
             input: {
               question,
@@ -537,12 +517,12 @@ export default function Home() {
           const finalApprovedQuestion =
             finalQuestion && segment
               ? {
-                  question: finalQuestion.question,
-                  answer: finalQuestion.answer,
-                  sourceExcerpt: segment.analysisWindow.excerpt,
-                  jury,
-                  integrity: report,
-                }
+                question: finalQuestion.question,
+                answer: finalQuestion.answer,
+                sourceExcerpt: segment.analysisWindow.excerpt,
+                jury,
+                integrity: report,
+              }
               : undefined;
 
           return {
@@ -636,7 +616,7 @@ export default function Home() {
       numberOfSteps: keys.length,
       successfulSteps: 0,
       failedSteps: 0,
-      providerUsed: aiStatus?.provider,
+      providerUsed: runtimeRunModeRef.current === "demo" ? "demo" : aiStatus?.liveProvider ?? aiStatus?.provider,
       modelsUsed: [],
     };
     setRunSummary(initialSummary);
@@ -684,27 +664,27 @@ export default function Home() {
       runSummary: completedSummary,
       vreadExport: current.vreadExport
         ? {
-            ...current.vreadExport,
-            json: {
-              ...current.vreadExport.json,
-              run_summary: completedSummary,
-            },
-          }
+          ...current.vreadExport,
+          json: {
+            ...current.vreadExport.json,
+            run_summary: completedSummary,
+          },
+        }
         : current.vreadExport,
       finalApprovedQuestion: current.finalApprovedQuestion
         ? {
-            ...current.finalApprovedQuestion,
-            runSummary: completedSummary,
-            vreadExport: current.vreadExport
-              ? {
-                  ...current.vreadExport,
-                  json: {
-                    ...current.vreadExport.json,
-                    run_summary: completedSummary,
-                  },
-                }
-              : current.finalApprovedQuestion.vreadExport,
-          }
+          ...current.finalApprovedQuestion,
+          runSummary: completedSummary,
+          vreadExport: current.vreadExport
+            ? {
+              ...current.vreadExport,
+              json: {
+                ...current.vreadExport.json,
+                run_summary: completedSummary,
+              },
+            }
+            : current.finalApprovedQuestion.vreadExport,
+        }
         : current.finalApprovedQuestion,
     }));
   };
@@ -801,31 +781,56 @@ export default function Home() {
     setSelectedQuestionId(undefined);
     setGlobalError(null);
     setRunSummary(undefined);
+    setLastFailedStep(undefined);
   };
 
-  const runModeLabel = appSourceLabel === "Demo fallback" ? "Fallback" : "Live";
+  const retryInDemoMode = async () => {
+    if (!lastFailedStep) return;
+    updateRuntimeRunMode("demo");
+    setGlobalError(null);
+    await runSequence([lastFailedStep]);
+  };
+
+  const runModeLabel =
+    runtimeRunMode === "demo"
+      ? "Demo mode"
+      : `Live ${providerLabel(aiStatus?.liveProvider ?? selectedProvider)}`;
 
   return (
     <AppShell>
-      <div className="flex min-h-screen flex-col gap-5 px-4 pb-28 pt-4 lg:px-6">
-        <WorkflowTopBar
-          provider={selectedProvider}
-          modeLabel={runModeLabel}
-          model={selectedModel}
-          busy={busy}
-          aiStatusError={aiStatusError}
-          onExport={exportFinalJson}
-        />
+      <div className="relative flex h-screen flex-col overflow-hidden px-3 pb-24 pt-3 lg:px-4">
+        <div className="pointer-events-none absolute left-20 top-4 z-20 md:left-20">
+          <h1 className="text-lg font-black tracking-tight text-slate-950">VREAD Question Jury</h1>
+          {aiStatusError && <p className="mt-1 max-w-[360px] text-xs font-bold text-red-600">{aiStatusError}</p>}
+        </div>
 
         {globalError && (
-          <div className="mx-auto flex w-[min(1480px,100%)] gap-3 rounded-[24px] border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700 shadow-sm">
-            <AlertTriangle className="h-5 w-5 shrink-0" />
-            {globalError}
+          <div className="absolute left-20 right-4 top-20 z-30 flex flex-col gap-3 rounded-[22px] border border-red-200 bg-red-50/95 p-3 text-sm font-semibold text-red-700 shadow-lg backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex gap-3">
+              <AlertTriangle className="h-5 w-5 shrink-0" />
+              {globalError}
+            </div>
+            {runtimeRunMode === "live" && lastFailedStep && (
+              <button
+                type="button"
+                onClick={retryInDemoMode}
+                className="inline-flex h-10 shrink-0 items-center justify-center rounded-2xl bg-red-600 px-4 text-sm font-black text-white transition hover:bg-red-700"
+              >
+                Retry in Demo mode
+              </button>
+            )}
           </div>
         )}
 
-        <section className="mx-auto grid w-[min(1480px,100%)] flex-1 gap-5 xl:grid-cols-[minmax(760px,1fr)_420px]">
-          <div className="flex min-h-[calc(100vh-190px)] flex-col gap-5 overflow-hidden">
+        <section
+          className={clsx(
+            "grid min-h-0 flex-1 gap-3 transition-[grid-template-columns]",
+            inspectorHidden
+              ? "grid-cols-1"
+              : "xl:grid-cols-[minmax(0,1fr)_390px] 2xl:grid-cols-[minmax(0,1fr)_420px]"
+          )}
+        >
+          <div className="min-h-0 overflow-hidden">
             <WorkflowCanvas
               steps={steps}
               selectedKey={selectedKey}
@@ -842,146 +847,67 @@ export default function Home() {
                 setInspectionPopoverOpen(true);
               }}
             />
-
-            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
-              <section className="rounded-[32px] border border-white bg-white p-5 shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
-                <div className="mb-4 flex items-center gap-2">
-                  <ShieldCheck className="h-5 w-5 text-emerald-600" />
-                  <h2 className="text-base font-black text-slate-950">Run output</h2>
-                  {integrityReport && (
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black uppercase text-slate-600">
-                      Integrity: {integrityReport.status}
-                    </span>
-                  )}
-                </div>
-                {!data.finalApprovedQuestion ? (
-                  <div className="rounded-[24px] border border-dashed border-slate-200 bg-slate-50 p-5 text-sm font-semibold text-slate-500">
-                    Run through Integrity, Export, and Output to show the approved VREAD question here.
-                  </div>
-                ) : (
-                  <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.8fr)]">
-                    <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
-                      <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">Approved question</div>
-                      <h3 className="mt-2 text-xl font-black text-slate-950">{data.finalApprovedQuestion.question}</h3>
-                      <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-3">
-                        <div className="text-xs font-black uppercase text-emerald-700">Answer</div>
-                        <div className="mt-1 text-base font-black text-slate-950">{data.finalApprovedQuestion.answer}</div>
-                      </div>
-                      <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                        <div className="rounded-2xl bg-white p-3">
-                          <div className="text-xs font-bold uppercase text-slate-400">Jury score</div>
-                          <div className="mt-1 text-2xl font-black text-slate-950">
-                            {data.finalApprovedQuestion.jury?.globalScore ?? "Pending"}
-                          </div>
-                        </div>
-                        <div className="rounded-2xl bg-white p-3">
-                          <div className="text-xs font-bold uppercase text-slate-400">Decision</div>
-                          <div className="mt-1 text-lg font-black capitalize text-slate-950">
-                            {data.finalApprovedQuestion.jury?.finalDecision ?? "pending"}
-                          </div>
-                        </div>
-                        <div className="rounded-2xl bg-white p-3">
-                          <div className="text-xs font-bold uppercase text-slate-400">Integrity</div>
-                          <div className="mt-1 text-lg font-black uppercase text-slate-950">
-                            {data.finalApprovedQuestion.integrity?.status ?? integrityReport?.status ?? "pending"}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
-                      <div className="mb-3 flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2">
-                          <FileJson className="h-4 w-4 text-violet-600" />
-                          <h3 className="text-sm font-black text-slate-950">VREAD Export</h3>
-                        </div>
-                        {vreadExport && (
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={copyVreadJson}
-                              className="inline-flex h-8 items-center gap-1 rounded-xl bg-white px-2 text-xs font-black text-violet-700"
-                            >
-                              <Clipboard className="h-3.5 w-3.5" />
-                              Copy
-                            </button>
-                            <button
-                              type="button"
-                              onClick={exportVreadJson}
-                              className="inline-flex h-8 items-center gap-1 rounded-xl bg-white px-2 text-xs font-black text-violet-700"
-                            >
-                              <Download className="h-3.5 w-3.5" />
-                              Export
-                            </button>
-                            <button
-                              type="button"
-                              onClick={copySqlPreview}
-                              className="inline-flex h-8 items-center gap-1 rounded-xl bg-white px-2 text-xs font-black text-amber-700"
-                            >
-                              <Database className="h-3.5 w-3.5" />
-                              SQL
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                      {vreadExport ? (
-                        <pre className="max-h-[260px] overflow-auto rounded-2xl bg-white p-3 text-xs leading-relaxed text-slate-600">
-                          {JSON.stringify(vreadExport.json, null, 2)}
-                        </pre>
-                      ) : (
-                        <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-4 text-sm font-semibold text-slate-500">
-                          Run the VREAD Export module to generate the payload.
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </section>
-
-              <WorkflowLogs logs={logs} />
-            </div>
           </div>
 
-          <WorkflowSidebar
-            samples={sampleDocuments}
-            selectedSampleId={selectedSampleId}
-            selectedStep={selectedStep}
-            inspectionMode={selectedInspectionMode}
-            data={data}
-            selectedSegmentIndex={selectedSegmentIndex}
-            selectedQuestionId={selectedQuestion?.id}
-            busy={busy}
-            sourceLabel={appSourceLabel}
-            onSampleChange={loadSample}
-            onUpload={uploadFile}
-            onRunFull={runFullWorkflow}
-            onRunStep={(key) => runSequence([key])}
-            onRunFromSelected={runFromSelected}
-            onRunFastJury={() => runSequence(["fastJury"])}
-            onRunStrictJury={() => runSequence(["strictJury"])}
-            onRewrite={() => runSequence(["rewrite"])}
-            onCopy={copyFinalJson}
-            onExport={exportFinalJson}
-            onCopyVreadJson={copyVreadJson}
-            onExportVreadJson={exportVreadJson}
-            onCopySqlPreview={copySqlPreview}
-            onReset={reset}
-            onSegmentChange={onSegmentChange}
-            onQuestionChange={onQuestionChange}
-            onInspectionModeChange={setSelectedInspectionMode}
-            onOpenInspection={(mode, anchor) => {
-              setSelectedInspectionMode(mode);
-              setInspectionAnchor(anchor);
-              setInspectionPopoverOpen(true);
-            }}
-          />
+          {!inspectorHidden && (
+            <WorkflowSidebar
+              samples={sampleDocuments}
+              selectedSampleId={selectedSampleId}
+              selectedStep={selectedStep}
+              inspectionMode={selectedInspectionMode}
+              data={data}
+              logs={logs}
+              selectedSegmentIndex={selectedSegmentIndex}
+              selectedQuestionId={selectedQuestion?.id}
+              busy={busy}
+              sourceLabel={appSourceLabel}
+              selectedModel={selectedModel}
+              onSampleChange={loadSample}
+              onUpload={uploadFile}
+              onRunFull={runFullWorkflow}
+              onRunStep={(key) => runSequence([key])}
+              onRunFromSelected={runFromSelected}
+              onRunFastJury={() => runSequence(["fastJury"])}
+              onRunStrictJury={() => runSequence(["strictJury"])}
+              onRewrite={() => runSequence(["rewrite"])}
+              onCopy={copyFinalJson}
+              onExport={exportFinalJson}
+              onCopyVreadJson={copyVreadJson}
+              onExportVreadJson={exportVreadJson}
+              onCopySqlPreview={copySqlPreview}
+              onReset={reset}
+              onSegmentChange={onSegmentChange}
+              onQuestionChange={onQuestionChange}
+              onInspectionModeChange={setSelectedInspectionMode}
+              onOpenInspection={(mode, anchor) => {
+                setSelectedInspectionMode(mode);
+                setInspectionAnchor(anchor);
+                setInspectionPopoverOpen(true);
+              }}
+            />
+          )}
         </section>
       </div>
+
+      <button
+        type="button"
+        onClick={() => setInspectorHidden((value) => !value)}
+        className="fixed right-4 top-4 z-40 inline-flex h-11 items-center gap-2 rounded-2xl border border-white/80 bg-white/95 px-3 text-sm font-black text-slate-700 shadow-lg backdrop-blur transition hover:text-violet-700"
+      >
+        {inspectorHidden ? <PanelRightOpen className="h-4 w-4" /> : <PanelRightClose className="h-4 w-4" />}
+        {inspectorHidden ? "Show panel" : "Hide panel"}
+      </button>
 
       <WorkflowBottomBar
         busy={busy}
         modeLabel={runModeLabel}
+        runtimeRunMode={runtimeRunMode}
         hasFinalOutput={Boolean(data.finalApprovedQuestion)}
+        onRunModeChange={(mode) => {
+          updateRuntimeRunMode(mode);
+          setGlobalError(null);
+          setLastFailedStep(undefined);
+        }}
         onRunOnce={() => runSequence([selectedKey])}
         onRunFull={runFullWorkflow}
         onRunFromSelected={runFromSelected}

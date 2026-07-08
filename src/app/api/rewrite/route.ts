@@ -10,13 +10,17 @@ const RewriteRequestSchema = JuryInputSchema.extend({
     judges: true,
   }).optional(),
   forceFallback: z.boolean().optional(),
+  runtimeRunMode: z.enum(["demo", "live"]).optional(),
 });
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const input = RewriteRequestSchema.parse(body);
-    const rewrite = await rewriteQuestion(input, input.result, input.forceFallback);
+    const rewrite = await rewriteQuestion(input, input.result, {
+      forceFallback: input.forceFallback,
+      runtimeMode: input.runtimeRunMode,
+    });
     return NextResponse.json({ rewrite });
   } catch (error) {
     const message =

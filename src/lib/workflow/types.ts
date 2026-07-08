@@ -1,10 +1,10 @@
 import { z } from "zod";
-import type { AiProviderName, AiTask } from "@/lib/ai/types";
+import type { AiProviderName, AiTask, RuntimeRunMode } from "@/lib/ai/types";
 import type { JuryResult, RewriteResult } from "@/lib/jury/types";
 
 export type WorkflowNodeStatus = "idle" | "running" | "success" | "error";
 
-export type NodeInspectionMode = "overview" | "input" | "output";
+export type NodeInspectionMode = "overview" | "input" | "output" | "final" | "logs";
 
 export type InspectionAnchor = {
   x: number;
@@ -169,9 +169,11 @@ export type WorkflowLog = {
   step?: WorkflowStepKey;
   ai?: {
     task: AiTask;
+    requestedRunMode?: RuntimeRunMode;
     provider: AiProviderName;
     model: string;
     latencyMs: number;
+    fallbackReason?: string;
     usage?: {
       promptTokens?: number;
       completionTokens?: number;

@@ -1,5 +1,7 @@
 export type AiProviderName = "openrouter" | "openai" | "demo";
 
+export type RuntimeRunMode = "demo" | "live";
+
 export type AiTask =
   | "questionGeneration"
   | "fastJury"
@@ -19,6 +21,7 @@ export type AiChatMessage = {
 export type AiCompletionRequest = {
   task: AiTask;
   messages: AiChatMessage[];
+  runtimeMode?: RuntimeRunMode;
   responseFormat?: "json";
   temperature?: number;
   maxOutputTokens?: number;
@@ -53,6 +56,7 @@ export type AiConfig = {
   provider: AiProviderName;
   configuredProvider: string;
   demoFallbackMode: boolean;
+  runtimeMode: RuntimeRunMode;
   apiKey?: string;
   models: AiModelConfig;
   providerSort?: AiProviderSort;
@@ -64,6 +68,10 @@ export type AiConfig = {
 export type AiPublicStatus = {
   provider: AiProviderName;
   configuredProvider: string;
+  liveProvider?: Exclude<AiProviderName, "demo">;
+  liveAvailable: boolean;
+  defaultRuntimeMode: RuntimeRunMode;
+  liveConfigurationError?: string;
   demoFallbackMode: boolean;
   models: AiModelConfig;
   providerSort?: AiProviderSort;

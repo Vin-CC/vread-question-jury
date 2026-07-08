@@ -16,12 +16,16 @@ const SegmentSchema = z.object({
 const RequestSchema = z.object({
   segment: SegmentSchema,
   forceFallback: z.boolean().optional(),
+  runtimeRunMode: z.enum(["demo", "live"]).optional(),
 });
 
 export async function POST(request: Request) {
   try {
     const body = RequestSchema.parse(await request.json());
-    const questions = await generateQuestionsForSegment(body.segment, body.forceFallback);
+    const questions = await generateQuestionsForSegment(body.segment, {
+      forceFallback: body.forceFallback,
+      runtimeMode: body.runtimeRunMode,
+    });
     return NextResponse.json({ questions });
   } catch (error) {
     const message =

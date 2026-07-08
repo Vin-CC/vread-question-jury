@@ -6,7 +6,7 @@ import { OpenAIProvider } from "./providers/openai-provider";
 import { OpenRouterProvider } from "./providers/openrouter-provider";
 import type { AiCompletionRequest, AiCompletionResponse, AiProvider } from "./types";
 
-export function createAiProvider(options: { forceDemoFallback?: boolean } = {}): AiProvider {
+export function createAiProvider(options: { forceDemoFallback?: boolean; runtimeMode?: AiCompletionRequest["runtimeMode"] } = {}): AiProvider {
   const config = getAiConfig(options);
   if (config.provider === "demo") return new DemoProvider();
   if (config.provider === "openai") return new OpenAIProvider(config);
@@ -17,8 +17,8 @@ export async function completeWithAi(
   request: AiCompletionRequest,
   options: { forceDemoFallback?: boolean } = {}
 ): Promise<AiCompletionResponse> {
-  const config = getAiConfig(options);
-  const provider = createAiProvider(options);
+  const config = getAiConfig({ ...options, runtimeMode: request.runtimeMode });
+  const provider = createAiProvider({ ...options, runtimeMode: request.runtimeMode });
   const started = Date.now();
   const model = request.model || modelForTask(config.models, request.task);
 

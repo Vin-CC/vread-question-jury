@@ -1,10 +1,13 @@
 import { Clipboard, Download, Play, RotateCcw, Sparkles, StepForward } from "lucide-react";
 import { clsx } from "clsx";
+import type { RuntimeRunMode } from "@/lib/ai/types";
 
 export function WorkflowBottomBar({
   busy,
   modeLabel,
+  runtimeRunMode,
   hasFinalOutput,
+  onRunModeChange,
   onRunOnce,
   onRunFull,
   onRunFromSelected,
@@ -14,7 +17,9 @@ export function WorkflowBottomBar({
 }: {
   busy: boolean;
   modeLabel: string;
+  runtimeRunMode: RuntimeRunMode;
   hasFinalOutput: boolean;
+  onRunModeChange: (mode: RuntimeRunMode) => void;
   onRunOnce: () => void;
   onRunFull: () => void;
   onRunFromSelected: () => void;
@@ -23,7 +28,7 @@ export function WorkflowBottomBar({
   onCopy: () => void;
 }) {
   return (
-    <div className="fixed bottom-5 left-[calc(50%+36px)] z-30 flex max-w-[calc(100vw-104px)] -translate-x-1/2 items-center gap-2 overflow-x-auto rounded-[28px] border border-white/80 bg-white/95 p-2 shadow-[0_24px_70px_rgba(79,70,229,0.18)] backdrop-blur">
+    <div className="fixed bottom-5 left-1/2 z-30 flex max-w-[calc(100vw-32px)] -translate-x-1/2 items-center gap-2 overflow-x-auto rounded-[28px] border border-white/80 bg-white/95 p-2 shadow-[0_24px_70px_rgba(79,70,229,0.18)] backdrop-blur">
       <button
         type="button"
         disabled={busy}
@@ -31,7 +36,7 @@ export function WorkflowBottomBar({
         className="inline-flex h-11 shrink-0 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:border-violet-200 hover:text-violet-700 disabled:opacity-50"
       >
         <StepForward className="h-4 w-4" />
-        Run once
+        Run selected
       </button>
       <button
         type="button"
@@ -51,15 +56,33 @@ export function WorkflowBottomBar({
         <Sparkles className="h-4 w-4" />
         From selected
       </button>
-      <div
-        className={clsx(
-          "inline-flex h-11 shrink-0 items-center rounded-2xl border px-4 text-xs font-black uppercase",
-          modeLabel === "Fallback"
-            ? "border-amber-200 bg-amber-50 text-amber-700"
-            : "border-emerald-200 bg-emerald-50 text-emerald-700"
-        )}
-      >
-        {modeLabel}
+      <div className="inline-flex h-11 shrink-0 items-center gap-1 rounded-2xl border border-slate-200 bg-slate-50 p-1">
+        {(["demo", "live"] as const).map((mode) => (
+          <button
+            key={mode}
+            type="button"
+            disabled={busy}
+            onClick={() => onRunModeChange(mode)}
+            className={clsx(
+              "h-9 rounded-xl px-3 text-xs font-black uppercase transition",
+              runtimeRunMode === mode
+                ? mode === "demo"
+                  ? "bg-amber-500 text-white shadow-sm"
+                  : "bg-emerald-600 text-white shadow-sm"
+                : "text-slate-500 hover:bg-white hover:text-violet-700"
+            )}
+          >
+            {mode === "demo" ? "Demo" : "Live"}
+          </button>
+        ))}
+        <span
+          className={clsx(
+            "ml-1 pr-2 text-[11px] font-black uppercase",
+          runtimeRunMode === "demo" ? "text-amber-700" : "text-emerald-700"
+          )}
+        >
+          {modeLabel}
+        </span>
       </div>
       <button
         type="button"

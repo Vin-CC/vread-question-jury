@@ -6,6 +6,7 @@ import type {
   AiProviderSort,
   AiPublicStatus,
   AiReasoningEffort,
+  RuntimeRunMode,
 } from "./types";
 
 const providerNames: AiProviderName[] = ["openrouter", "openai", "demo"];
@@ -76,17 +77,54 @@ function requiredApiKey(provider: AiProviderName, configuredProvider: string) {
   return apiKey;
 }
 
-export function getAiConfig(options: { forceDemoFallback?: boolean } = {}): AiConfig {
+function apiKeyErrorMessage(provider: AiProviderName, configuredProvider: string) {
+  try {
+    requiredApiKey(provider, configuredProvider);
+    return undefined;
+  } catch (error) {
+    return error instanceof Error ? error.message : "Live mode is not configured.";
+  }
+}
+
+function liveModeError(message: string) {
+  return new AiProviderError({
+    message: `Live mode is not configured. ${message} Add an API key or switch to Demo mode.`,
+  });
+}
+
+export function getAiConfig(options: { forceDemoFallback?: boolean; runtimeMode?: RuntimeRunMode } = {}): AiConfig {
   const demoFallbackMode =
     options.forceDemoFallback || cleanEnv("DEMO_FALLBACK_MODE")?.toLowerCase() === "true";
   const parsed = parseProvider(cleanEnv("AI_PROVIDER"));
-  const provider = demoFallbackMode ? "demo" : parsed.provider;
+  const runtimeMode: RuntimeRunMode =
+    options.runtimeMode ?? (demoFallbackMode || parsed.provider === "demo" ? "demo" : "live");
+
+  let provider: AiProviderName;
+  if (runtimeMode === "demo") {
+    provider = "demo";
+  } else {
+    if (parsed.provider === "demo") {
+      throw liveModeError("AI_PROVIDER is set to demo.");
+    }
+    provider = parsed.provider;
+  }
+
+  let apiKey: string | undefined;
+  try {
+    apiKey = requiredApiKey(provider, parsed.configuredProvider);
+  } catch (error) {
+    if (runtimeMode === "live" && error instanceof Error && /API_KEY is not configured/.test(error.message)) {
+      throw liveModeError(error.message);
+    }
+    throw error;
+  }
 
   return {
     provider,
     configuredProvider: parsed.configuredProvider,
     demoFallbackMode,
-    apiKey: requiredApiKey(provider, parsed.configuredProvider),
+    runtimeMode,
+    apiKey,
     models: resolveModels(provider),
     providerSort: parseProviderSort(),
     temperature: parseNumber("AI_TEMPERATURE", 0.1),
@@ -96,23 +134,24 @@ export function getAiConfig(options: { forceDemoFallback?: boolean } = {}): AiCo
 }
 
 export function getAiPublicStatus(): AiPublicStatus {
-  let config: AiConfig;
-  try {
-    config = getAiConfig();
-  } catch (error) {
-    if (
-      error instanceof AiProviderError &&
-      /API_KEY is not configured/.test(error.message)
-    ) {
-      config = getAiConfig({ forceDemoFallback: true });
-    } else {
-      throw error;
-    }
-  }
+  const parsed = parseProvider(cleanEnv("AI_PROVIDER"));
+  const demoFallbackMode = cleanEnv("DEMO_FALLBACK_MODE")?.toLowerCase() === "true";
+  const liveProvider = parsed.provider === "demo" ? undefined : parsed.provider;
+  const liveConfigurationError = liveProvider
+    ? apiKeyErrorMessage(liveProvider, parsed.configuredProvider)
+    : "AI_PROVIDER is set to demo.";
+  const liveAvailable = Boolean(liveProvider && !liveConfigurationError);
+  const defaultRuntimeMode: RuntimeRunMode =
+    demoFallbackMode || parsed.provider === "demo" || !liveAvailable ? "demo" : "live";
+  const config = getAiConfig({ runtimeMode: defaultRuntimeMode });
 
   return {
     provider: config.provider,
     configuredProvider: config.configuredProvider,
+    liveProvider,
+    liveAvailable,
+    defaultRuntimeMode,
+    liveConfigurationError,
     demoFallbackMode: config.demoFallbackMode,
     models: config.models,
     providerSort: config.providerSort,

@@ -67,10 +67,12 @@ export function WorkflowLogs({ logs }: { logs: WorkflowLog[] }) {
                   {log.ai && (
                     <div className="mt-1 flex flex-wrap gap-2 pl-[92px] text-[11px] text-slate-500">
                       <span>task {log.ai.task}</span>
-                      <span>provider {log.ai.provider}</span>
+                      {log.ai.requestedRunMode && <span>requested {log.ai.requestedRunMode}</span>}
+                      <span>actualProvider {log.ai.provider}</span>
                       <span>model {log.ai.model}</span>
                       <span>latency {log.ai.latencyMs}ms</span>
                       {usage && <span>tokens {usage}</span>}
+                      {log.ai.fallbackReason && <span>fallback {log.ai.fallbackReason}</span>}
                     </div>
                   )}
                 </div>

@@ -6,15 +6,17 @@ import {
   type GeneratedQuestion,
   type TextSegment,
 } from "./types";
+import type { RuntimeRunMode } from "@/lib/ai/types";
 
 export async function generateQuestionsForSegment(
   segment: TextSegment,
-  forceFallback = false
+  options: { forceFallback?: boolean; runtimeMode?: RuntimeRunMode } = {}
 ): Promise<GeneratedQuestion[]> {
   const prompt = buildQuestionGenerationPrompt(segment);
   const response = await completeWithAi(
     {
       task: "questionGeneration",
+      runtimeMode: options.runtimeMode,
       messages: [
         { role: "system", content: prompt.system },
         { role: "user", content: prompt.user },
@@ -23,7 +25,7 @@ export async function generateQuestionsForSegment(
       maxOutputTokens: 1200,
       temperature: 0.2,
     },
-    { forceDemoFallback: forceFallback }
+    { forceDemoFallback: options.forceFallback }
   );
 
   const parsed = QuestionGenerationResponseSchema.parse(parseJsonObject(response.content));

@@ -6,6 +6,7 @@ import { JuryInputSchema } from "@/lib/jury/types";
 const JuryRequestSchema = JuryInputSchema.extend({
   mode: z.enum(["fast", "strict"]),
   forceFallback: z.boolean().optional(),
+  runtimeRunMode: z.enum(["demo", "live"]).optional(),
 });
 
 export async function POST(request: Request) {
@@ -14,8 +15,14 @@ export async function POST(request: Request) {
     const input = JuryRequestSchema.parse(body);
     const result =
       input.mode === "fast"
-        ? await runFastJury(input, input.forceFallback)
-        : await runStrictJury(input, input.forceFallback);
+        ? await runFastJury(input, {
+            forceFallback: input.forceFallback,
+            runtimeMode: input.runtimeRunMode,
+          })
+        : await runStrictJury(input, {
+            forceFallback: input.forceFallback,
+            runtimeMode: input.runtimeRunMode,
+          });
     return NextResponse.json({ result });
   } catch (error) {
     const message =
