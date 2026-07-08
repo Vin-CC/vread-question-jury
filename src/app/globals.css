@@ -1,0 +1,67 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f7f8fb;
+  --foreground: #14151a;
+  --panel: #ffffff;
+  --panel-strong: #f0f2f6;
+  --border: #dfe3eb;
+  --muted: #626b7a;
+  --ink-soft: #303847;
+  --approved: #0f7a4f;
+  --approved-bg: #e5f6ee;
+  --rewrite: #9a6700;
+  --rewrite-bg: #fff4cf;
+  --rejected: #b42318;
+  --rejected-bg: #ffe8e5;
+  --accent: #2357c6;
+  --accent-dark: #193f91;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background: var(--background);
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  color: var(--foreground);
+  background:
+    linear-gradient(135deg, rgba(35, 87, 198, 0.08), transparent 34%),
+    linear-gradient(315deg, rgba(15, 122, 79, 0.08), transparent 36%),
+    var(--background);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
+}
+
+textarea,
+input,
+select {
+  border: 1px solid var(--border);
+  background: #ffffff;
+  color: var(--foreground);
+  outline: none;
+}
+
+textarea:focus,
+input:focus,
+select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(35, 87, 198, 0.16);
+}
