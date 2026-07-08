@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { AiProviderName } from "@/lib/ai/types";
 
 export type JudgeName =
   | "evidence"
@@ -31,6 +32,7 @@ export type JudgeResult = {
   reason: string;
   failureModes: string[];
   suggestedFix?: string;
+  provider?: AiProviderName;
   model?: string;
   latencyMs?: number;
   usage?: TokenUsage;
@@ -48,6 +50,7 @@ export type JuryResult = {
     answer: string;
     reason: string;
   };
+  provider?: AiProviderName;
   model?: string;
   latencyMs?: number;
   usage?: TokenUsage;
@@ -58,6 +61,7 @@ export type RewriteResult = {
   answer: string;
   reason: string;
   source?: "live" | "fallback";
+  provider?: AiProviderName;
   model?: string;
   latencyMs?: number;
   usage?: TokenUsage;
@@ -87,6 +91,8 @@ export const TokenUsageSchema = z.object({
   totalTokens: z.number().int().nonnegative().optional(),
 });
 
+export const AiProviderNameSchema = z.enum(["openrouter", "openai", "demo"]);
+
 export const JudgeResultSchema = z.object({
   judge: JudgeNameSchema,
   score: z.number().int().min(0).max(100),
@@ -94,6 +100,7 @@ export const JudgeResultSchema = z.object({
   reason: z.string().min(8).max(1000),
   failureModes: z.array(z.string().min(1).max(160)).max(8),
   suggestedFix: z.string().min(1).max(600).optional(),
+  provider: AiProviderNameSchema.optional(),
   model: z.string().optional(),
   latencyMs: z.number().int().nonnegative().optional(),
   usage: TokenUsageSchema.optional(),
@@ -113,6 +120,7 @@ export const JuryResultSchema = z.object({
       reason: z.string().min(8).max(800),
     })
     .optional(),
+  provider: AiProviderNameSchema.optional(),
   model: z.string().optional(),
   latencyMs: z.number().int().nonnegative().optional(),
   usage: TokenUsageSchema.optional(),
@@ -123,12 +131,8 @@ export const RewriteResultSchema = z.object({
   answer: z.string().min(1).max(500),
   reason: z.string().min(8).max(800),
   source: z.enum(["live", "fallback"]).optional(),
+  provider: AiProviderNameSchema.optional(),
   model: z.string().optional(),
   latencyMs: z.number().int().nonnegative().optional(),
   usage: TokenUsageSchema.optional(),
 });
-
-export type OpenRouterMessage = {
-  role: "system" | "user";
-  content: string;
-};

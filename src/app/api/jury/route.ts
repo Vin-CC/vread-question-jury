@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getFallbackJuryResult, isDemoFallbackEnabled } from "@/lib/jury/fallback";
 import { runFastJury, runStrictJury } from "@/lib/jury/run";
 import { JuryInputSchema } from "@/lib/jury/types";
 
@@ -14,11 +13,9 @@ export async function POST(request: Request) {
     const body = await request.json();
     const input = JuryRequestSchema.parse(body);
     const result =
-      input.forceFallback || isDemoFallbackEnabled()
-        ? getFallbackJuryResult(input, input.mode)
-        : input.mode === "fast"
-          ? await runFastJury(input)
-          : await runStrictJury(input);
+      input.mode === "fast"
+        ? await runFastJury(input, input.forceFallback)
+        : await runStrictJury(input, input.forceFallback);
     return NextResponse.json({ result });
   } catch (error) {
     const message =

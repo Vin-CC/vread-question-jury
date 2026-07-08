@@ -47,6 +47,16 @@ export const workflowNodeDefinitions: Array<Pick<WorkflowStepState, "key" | "lab
     summary: "Improve fixable weak questions.",
   },
   {
+    key: "integrityChecks",
+    label: "Integrity Checks",
+    summary: "Validate evidence, jury quality, duplicates, and required fields.",
+  },
+  {
+    key: "vreadExport",
+    label: "VREAD Export",
+    summary: "Produce VREAD-compatible JSON and SQL preview output.",
+  },
+  {
     key: "finalOutput",
     label: "Final Output",
     summary: "Approved question, answer, source excerpt, and export JSON.",

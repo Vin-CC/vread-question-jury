@@ -2,7 +2,7 @@
 
 Standalone hackathon demo for showing how VREAD can transform a book document into verified reading-comprehension questions through a visual AI workflow.
 
-The app ingests a PDF, EPUB, or built-in sample document, extracts text, cleans it, segments it, generates candidate questions, evaluates them with LLM-as-a-Jury, optionally rewrites weak questions, and exports the final approved output as JSON.
+The app ingests a PDF, EPUB, or built-in sample document, extracts text, cleans it, segments it, generates candidate questions, evaluates them with LLM-as-a-Jury, optionally rewrites weak questions, runs lightweight integrity checks, and exports VREAD-compatible JSON.
 
 ## Project Purpose
 
@@ -19,7 +19,9 @@ This demo makes that pipeline visible as a node-based workflow:
 7. Fast Jury
 8. Strict Multi-Agent Jury
 9. Rewrite
-10. Final Output
+10. Integrity Checks
+11. VREAD Export
+12. Final Output
 
 ## Visual Workflow
 
@@ -52,6 +54,61 @@ This standalone demo borrows concepts from the historical VREAD workflow project
 - `process -> questions -> review/output` thinking.
 - Segment records with `index`, `wordCount`, `text`, and `analysisWindow`.
 - Prompt principles that favor explicit source evidence, memorable scene details, no yes/no questions, and answers grounded in the excerpt.
+- Integrity validation before export.
+- VREAD-shaped export objects for `book` and `reading_questions`.
+- A local run summary that resembles production job metadata without a database.
+
+This is not the full production workflow. The demo intentionally does not implement:
+
+- Anna's Archive, RapidAPI, or other search/download integrations.
+- Supabase persistence or production job tables.
+- Real batch CSV processing.
+- Cover search, cover upload, or media metadata management.
+- A full SQL production pipeline.
+- Persistent prompt editing or prompt version management.
+- Claude/Gemini provider integrations.
+- Admin dashboards.
+
+## Integrity Checks
+
+The Integrity Checks node runs local deterministic validation after Jury/Rewrite and before export. It produces a structured report with `pass`, `warning`, or `fail` checks.
+
+Checks include:
+
+- question, answer, and source excerpt presence.
+- answer is not revealed inside the question.
+- answer appears in the source excerpt by exact text match.
+- final jury decision is not `reject`.
+- Evidence Judge did not reject.
+- global jury score is above the configured threshold.
+- selected question is not duplicated among generated candidates.
+- segment index and segment length are present.
+- final output has required fields.
+
+Missing evidence is treated as `fail`. Medium scores that are not rejected can produce `warning`. If all critical checks pass, the report status is `pass`.
+
+## VREAD Export
+
+The VREAD Export node transforms the approved question into a lightweight VREAD-compatible object. It does not insert into Supabase and does not execute SQL.
+
+The export contains:
+
+- `book`: title, slug, language, expected segment count, source type, word count, and demo origin.
+- `reading_questions`: segment index, question, answer, source excerpt, jury decision, jury score, and integrity status.
+- `run_summary`: local run metadata for the current workflow execution.
+
+The UI supports copying VREAD JSON, exporting VREAD JSON, and copying a clearly labeled SQL preview string. The SQL string is preview-only and exists for demo storytelling, not production execution.
+
+## Local Run Summary
+
+Each workflow execution records local state only:
+
+- run id, start/end time, and duration.
+- number of requested steps, successful steps, and failed steps.
+- provider and models used when available.
+- final jury decision, global score, and integrity status.
+
+This is intentionally not persisted to a database. It is included in the VREAD JSON export for audit-style demo context.
 
 ## LLM-as-a-Jury
 
@@ -64,35 +121,96 @@ The jury evaluates generated questions through specialized roles:
 - Pedagogy Judge: checks meaningful comprehension value.
 - Chief Judge: aggregates results into `approve`, `rewrite`, or `reject`.
 
-Fast Jury Mode uses one OpenRouter call to simulate all judges. Strict Multi-Agent Mode runs separate judge calls in parallel and then sends the validated judge outputs to a Chief Judge.
+Fast Jury Mode uses one AI provider call to simulate all judges. Strict Multi-Agent Mode runs separate judge calls in parallel and then sends the validated judge outputs to a Chief Judge.
 
-## OpenRouter
+## AI Provider Configuration
 
-All live LLM calls go through `src/lib/jury/openrouter.ts`.
+All runtime LLM calls go through `src/lib/ai`. Workflow and jury code call the generic AI gateway, so switching providers is an environment change rather than a code change.
 
 Environment variables:
 
 ```bash
-OPENROUTER_API_KEY=your_openrouter_key
+AI_PROVIDER=openrouter # openrouter | openai | demo
+DEMO_FALLBACK_MODE=true
+
+OPENROUTER_API_KEY=
+OPENAI_API_KEY=
+
+AI_QUESTION_MODEL=
+AI_FAST_MODEL=
+AI_STRICT_MODEL=
+AI_CHIEF_MODEL=
+AI_REWRITE_MODEL=
+
+AI_PROVIDER_SORT=price # optional: price | throughput | latency
+AI_TEMPERATURE=0.2
+AI_MAX_OUTPUT_TOKENS=2000
+AI_REASONING_EFFORT=low # none | low | medium | high
+```
+
+Task-specific routing:
+
+- `questionGeneration` uses `AI_QUESTION_MODEL`
+- `fastJury` uses `AI_FAST_MODEL`
+- `evidenceJudge`, `ambiguityJudge`, `antiCheatJudge`, `clarityJudge`, and `pedagogyJudge` use `AI_STRICT_MODEL`
+- `chiefJudge` uses `AI_CHIEF_MODEL`
+- `rewrite` uses `AI_REWRITE_MODEL`
+
+Legacy OpenRouter model variables are still supported for compatibility:
+
+```bash
 OPENROUTER_FAST_MODEL=openai/gpt-4o-mini
 OPENROUTER_STRICT_MODEL=openai/gpt-4o-mini
 OPENROUTER_CHIEF_MODEL=openai/gpt-4o-mini
 OPENROUTER_REWRITE_MODEL=openai/gpt-4o-mini
 ```
 
+The generic `AI_*` model variables take precedence when both are set.
+
 All model responses are parsed as JSON and validated with Zod before use.
 
-## Demo Fallback Mode
+### OpenRouter Setup
+
+```bash
+AI_PROVIDER=openrouter
+DEMO_FALLBACK_MODE=false
+OPENROUTER_API_KEY=your_openrouter_key
+AI_FAST_MODEL=openai/gpt-4o-mini
+AI_STRICT_MODEL=openai/gpt-4o-mini
+AI_CHIEF_MODEL=openai/gpt-4o-mini
+AI_REWRITE_MODEL=openai/gpt-4o-mini
+AI_QUESTION_MODEL=openai/gpt-4o-mini
+```
+
+OpenRouter provider sorting is supported with `AI_PROVIDER_SORT=price`, `throughput`, or `latency`.
+
+### OpenAI Setup
+
+```bash
+AI_PROVIDER=openai
+DEMO_FALLBACK_MODE=false
+OPENAI_API_KEY=your_openai_key
+AI_FAST_MODEL=gpt-4o-mini
+AI_STRICT_MODEL=gpt-4o-mini
+AI_CHIEF_MODEL=gpt-4o-mini
+AI_REWRITE_MODEL=gpt-4o-mini
+AI_QUESTION_MODEL=gpt-4o-mini
+```
+
+`AI_PROVIDER=codex` is treated as an OpenAI runtime provider alias. Codex itself is a development agent, so this app still needs `OPENAI_API_KEY` and runtime model names.
+
+### Demo Fallback Setup
 
 For presentations, set:
 
 ```bash
+AI_PROVIDER=demo
 DEMO_FALLBACK_MODE=true
 ```
 
-Fallback mode prevents the demo from depending on network access, rate limits, or an API key. It provides deterministic document workflow outputs, question generation outputs, jury results, and rewrite results. The UI labels fallback outputs as **Demo fallback**.
+Demo mode prevents the app from depending on network access, rate limits, or an API key. It provides deterministic question generation outputs, jury results, and rewrite results. The UI labels fallback outputs as **Demo fallback**.
 
-If fallback mode is disabled and a live OpenRouter call fails, the workflow automatically attempts a deterministic fallback for that step and logs the failure.
+If fallback mode is disabled and a live provider call fails, the workflow automatically attempts a deterministic fallback for that step and logs the failure.
 
 ## Run Locally
 
@@ -105,16 +223,26 @@ npm run dev
 
 Open the local URL printed by Next.js.
 
-Real OpenRouter mode:
+OpenRouter mode:
 
 ```bash
+AI_PROVIDER=openrouter
 OPENROUTER_API_KEY=your_openrouter_key
+DEMO_FALLBACK_MODE=false
+```
+
+OpenAI mode:
+
+```bash
+AI_PROVIDER=openai
+OPENAI_API_KEY=your_openai_key
 DEMO_FALLBACK_MODE=false
 ```
 
 Presentation fallback mode:
 
 ```bash
+AI_PROVIDER=demo
 DEMO_FALLBACK_MODE=true
 ```
 
@@ -136,7 +264,9 @@ npm run build
 6. Click Question Generation to inspect candidate questions.
 7. Show Fast Jury and Strict Jury scores in the jury detail panel.
 8. Show Rewrite for a weak question.
-9. Show Final Output and export/copy the JSON.
+9. Show Integrity Checks and explain the production-inspired validation layer.
+10. Show VREAD Export and copy/export the JSON or copy the SQL preview.
+11. Show Final Output and export/copy the JSON.
 
 ## Project Boundary
 

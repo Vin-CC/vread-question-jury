@@ -8,7 +8,7 @@ import {
   buildPedagogyJudgePrompt,
   buildRewritePrompt,
 } from "./prompts";
-import { callOpenRouter, getModel } from "./openrouter";
+import { completeWithAi } from "@/lib/ai/gateway";
 import { parseJsonObject } from "./json";
 import { normalizeFinalDecision } from "./scoring";
 import {
@@ -19,23 +19,34 @@ import {
   type JudgeResult,
   type JuryInput,
   type JuryResult,
-  type OpenRouterMessage,
   type RewriteResult,
 } from "./types";
+import type { AiChatMessage, AiCompletionResponse, AiTask } from "@/lib/ai/types";
 
-function messagesFromPrompt(prompt: { system: string; user: string }): OpenRouterMessage[] {
+function messagesFromPrompt(prompt: { system: string; user: string }): AiChatMessage[] {
   return [
     { role: "system", content: prompt.system },
     { role: "user", content: prompt.user },
   ];
 }
 
+function tokenUsage(response: AiCompletionResponse) {
+  return response.usage
+    ? {
+        promptTokens: response.usage.inputTokens,
+        completionTokens: response.usage.outputTokens,
+        totalTokens: response.usage.totalTokens,
+      }
+    : undefined;
+}
+
 function attachJudgeMetadata(
   judge: JudgeResult,
-  meta: { model: string; latencyMs: number; usage?: JudgeResult["usage"] }
+  meta: { provider: JudgeResult["provider"]; model: string; latencyMs: number; usage?: JudgeResult["usage"] }
 ): JudgeResult {
   return {
     ...judge,
+    provider: meta.provider,
     model: meta.model,
     latencyMs: meta.latencyMs,
     usage: meta.usage,
@@ -44,25 +55,29 @@ function attachJudgeMetadata(
 
 function attachJuryMetadata(
   result: JuryResult,
-  meta: { model: string; latencyMs: number; usage?: JuryResult["usage"] }
+  meta: { provider: JuryResult["provider"]; model: string; latencyMs: number; usage?: JuryResult["usage"] }
 ): JuryResult {
   return {
     ...result,
-    source: "live",
+    source: meta.provider === "demo" ? "fallback" : "live",
+    provider: meta.provider,
     model: meta.model,
     latencyMs: meta.latencyMs,
     usage: meta.usage,
   };
 }
 
-export async function runFastJury(input: JuryInput): Promise<JuryResult> {
-  const model = getModel("fast");
+export async function runFastJury(input: JuryInput, forceFallback = false): Promise<JuryResult> {
   const prompt = buildFastJuryPrompt(input);
-  const response = await callOpenRouter({
-    model,
-    messages: messagesFromPrompt(prompt),
-    maxTokens: 2400,
-  });
+  const response = await completeWithAi(
+    {
+      task: "fastJury",
+      messages: messagesFromPrompt(prompt),
+      responseFormat: "json",
+      maxOutputTokens: 2400,
+    },
+    { forceDemoFallback: forceFallback }
+  );
 
   const parsedJson = parseJsonObject(response.content);
   const validated = JuryResultSchema.parse(parsedJson);
@@ -71,13 +86,14 @@ export async function runFastJury(input: JuryInput): Promise<JuryResult> {
       ...validated,
       judges: validated.judges.map((judge) =>
         attachJudgeMetadata(judge, {
+          provider: response.provider,
           model: response.model,
           latencyMs: response.latencyMs,
-          usage: response.usage,
+          usage: tokenUsage(response),
         })
       ),
     },
-    response
+    { ...response, usage: tokenUsage(response) }
   );
 
   return normalizeFinalDecision(withMeta);
@@ -91,31 +107,45 @@ const builders: Record<JudgeName, (input: JuryInput) => { system: string; user: 
   pedagogy: buildPedagogyJudgePrompt,
 };
 
-async function runJudge(input: JuryInput, judgeName: JudgeName): Promise<JudgeResult> {
-  const model = getModel("strict");
-  const response = await callOpenRouter({
-    model,
-    messages: messagesFromPrompt(builders[judgeName](input)),
-    maxTokens: 900,
-  });
+const judgeTasks: Record<JudgeName, AiTask> = {
+  evidence: "evidenceJudge",
+  ambiguity: "ambiguityJudge",
+  antiCheat: "antiCheatJudge",
+  clarity: "clarityJudge",
+  pedagogy: "pedagogyJudge",
+};
+
+async function runJudge(input: JuryInput, judgeName: JudgeName, forceFallback: boolean): Promise<JudgeResult> {
+  const response = await completeWithAi(
+    {
+      task: judgeTasks[judgeName],
+      messages: messagesFromPrompt(builders[judgeName](input)),
+      responseFormat: "json",
+      maxOutputTokens: 900,
+    },
+    { forceDemoFallback: forceFallback }
+  );
   const parsedJson = parseJsonObject(response.content);
   const validated = JudgeResultSchema.parse(parsedJson);
-  return attachJudgeMetadata(validated, response);
+  return attachJudgeMetadata(validated, { ...response, usage: tokenUsage(response) });
 }
 
-export async function runStrictJury(input: JuryInput): Promise<JuryResult> {
+export async function runStrictJury(input: JuryInput, forceFallback = false): Promise<JuryResult> {
   const judges = await Promise.all(
     (["evidence", "ambiguity", "antiCheat", "clarity", "pedagogy"] as const).map((judge) =>
-      runJudge(input, judge)
+      runJudge(input, judge, forceFallback)
     )
   );
 
-  const chiefModel = getModel("chief");
-  const chiefResponse = await callOpenRouter({
-    model: chiefModel,
-    messages: messagesFromPrompt(buildChiefJudgePrompt(input, judges)),
-    maxTokens: 1800,
-  });
+  const chiefResponse = await completeWithAi(
+    {
+      task: "chiefJudge",
+      messages: messagesFromPrompt(buildChiefJudgePrompt(input, judges)),
+      responseFormat: "json",
+      maxOutputTokens: 1800,
+    },
+    { forceDemoFallback: forceFallback }
+  );
 
   const parsedJson = parseJsonObject(chiefResponse.content);
   const validated = JuryResultSchema.parse(parsedJson);
@@ -123,6 +153,7 @@ export async function runStrictJury(input: JuryInput): Promise<JuryResult> {
     const original = judges.find((item) => item.judge === judge.judge);
     return {
       ...judge,
+      provider: original?.provider,
       model: original?.model,
       latencyMs: original?.latencyMs,
       usage: original?.usage,
@@ -136,29 +167,34 @@ export async function runStrictJury(input: JuryInput): Promise<JuryResult> {
         mode: "strict",
         judges: mergedJudges,
       },
-      chiefResponse
+      { ...chiefResponse, usage: tokenUsage(chiefResponse) }
     )
   );
 }
 
 export async function rewriteQuestion(
   input: JuryInput,
-  result?: Pick<JuryResult, "finalDecision" | "summary" | "judges">
+  result?: Pick<JuryResult, "finalDecision" | "summary" | "judges">,
+  forceFallback = false
 ): Promise<RewriteResult> {
-  const model = getModel("rewrite");
-  const response = await callOpenRouter({
-    model,
-    messages: messagesFromPrompt(buildRewritePrompt(input, result)),
-    maxTokens: 1000,
-  });
+  const response = await completeWithAi(
+    {
+      task: "rewrite",
+      messages: messagesFromPrompt(buildRewritePrompt(input, result)),
+      responseFormat: "json",
+      maxOutputTokens: 1000,
+    },
+    { forceDemoFallback: forceFallback }
+  );
 
   const parsedJson = parseJsonObject(response.content);
   const validated = RewriteResultSchema.parse(parsedJson);
   return {
     ...validated,
-    source: "live",
+    source: response.provider === "demo" ? "fallback" : "live",
+    provider: response.provider,
     model: response.model,
     latencyMs: response.latencyMs,
-    usage: response.usage,
+    usage: tokenUsage(response),
   };
 }

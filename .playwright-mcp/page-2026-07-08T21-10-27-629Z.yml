@@ -1,0 +1,85 @@
+- main [ref=e2]:
+  - generic [ref=e3]:
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - heading "VREAD Document Jury Workflow" [level=1] [ref=e7]
+        - paragraph [ref=e8]: Upload a PDF or EPUB, extract and segment text, generate candidate questions, run Fast and Strict LLM-as-a-Jury evaluation, rewrite weak questions, and export approved reading-comprehension output.
+      - generic [ref=e9]: Live OpenRouter
+    - generic [ref=e10]:
+      - generic [ref=e11]:
+        - application [ref=e13]:
+          - img [ref=e16]
+          - img "Mini Map" [ref=e19]
+          - generic "Control Panel" [ref=e20]:
+            - button "Zoom In" [ref=e21]:
+              - img
+            - button "Zoom Out" [ref=e23]:
+              - img
+            - button "Fit View" [ref=e25]:
+              - img
+            - button "Toggle Interactivity" [ref=e27]:
+              - img
+          - link "React Flow attribution" [ref=e30] [cursor=pointer]:
+            - /url: https://reactflow.dev/attribution
+            - text: React Flow
+        - generic [ref=e32]:
+          - generic [ref=e33]:
+            - generic [ref=e34]:
+              - heading "Execution Logs" [level=2] [ref=e35]
+              - generic [ref=e36]: 0 events
+            - generic [ref=e38]: No workflow events yet.
+          - generic [ref=e39]:
+            - heading "Jury Detail View" [level=2] [ref=e41]
+            - generic [ref=e42]: Run Fast Jury or Strict Jury to inspect judge scores here.
+      - complementary [ref=e43]:
+        - generic [ref=e44]:
+          - generic [ref=e45]:
+            - heading "Workflow Control" [level=2] [ref=e46]
+            - paragraph [ref=e47]: Upload, run, inspect, export.
+          - text: Live OpenRouter
+        - generic [ref=e48]:
+          - text: Sample document
+          - combobox [ref=e49]:
+            - 'option "Sample: Bakery Orders" [selected]'
+            - 'option "Sample: Observatory Storm"'
+          - generic [ref=e50]:
+            - img [ref=e51]
+            - text: Upload PDF / EPUB
+            - button "Upload PDF / EPUB" [ref=e54]
+        - generic [ref=e55]:
+          - button "Run full" [ref=e56]:
+            - img [ref=e57]
+            - text: Run full
+          - button "From node" [ref=e59]:
+            - img [ref=e60]
+            - text: From node
+          - button "Fast Jury" [ref=e62]
+          - button "Strict Jury" [ref=e63]
+          - button "Rewrite" [ref=e64]:
+            - img [ref=e65]
+            - text: Rewrite
+          - button "Reset" [ref=e68]:
+            - img [ref=e69]
+            - text: Reset
+        - generic [ref=e72]:
+          - generic [ref=e73]:
+            - heading "Document Input" [level=3] [ref=e74]
+            - text: idle
+          - paragraph [ref=e75]: Upload PDF/EPUB or choose a built-in sample.
+          - generic [ref=e76]:
+            - button "overview" [ref=e77]
+            - button "input" [ref=e78]: input
+            - button "output" [ref=e79]: output
+          - button "Run selected step" [ref=e80]
+          - generic [ref=e81]:
+            - generic [ref=e82]:
+              - generic [ref=e83]:
+                - img [ref=e84]
+                - text: Object
+              - generic [ref=e87]: 4 keys
+            - generic [ref=e88]: "{ \"name\": \"Sample: Bakery Orders\", \"kind\": \"sample\", \"source\": \"sample\", \"wordCount\": 411 }"
+    - generic [ref=e89]:
+      - generic [ref=e90]:
+        - img [ref=e91]
+        - heading "Raw Workflow JSON" [level=2] [ref=e95]
+      - generic [ref=e96]: "{ \"document\": { \"name\": \"Sample: Bakery Orders\", \"kind\": \"sample\", \"source\": \"sample\", \"wordCount\": 411 } }"

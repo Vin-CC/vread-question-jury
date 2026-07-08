@@ -54,9 +54,13 @@ Show the rewrite step for a weak or broad question.
 
 ## 2:45 - Final Output
 
+Show **Integrity Checks** and **VREAD Export**.
+
+"After the jury, the workflow runs integrity checks inspired by the production VREAD pipeline, then produces a VREAD-compatible export."
+
 Click or show **Final Output**.
 
-"The result is an auditable JSON object: question, answer, source excerpt, and jury metadata."
+"The result is an auditable JSON object: question, answer, source excerpt, jury metadata, integrity status, and VREAD export data."
 
 Copy or export JSON.
 

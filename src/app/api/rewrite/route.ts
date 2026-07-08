@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getFallbackRewrite, isDemoFallbackEnabled } from "@/lib/jury/fallback";
 import { rewriteQuestion } from "@/lib/jury/run";
 import { JuryInputSchema, JuryResultSchema } from "@/lib/jury/types";
 
@@ -17,10 +16,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const input = RewriteRequestSchema.parse(body);
-    const rewrite =
-      input.forceFallback || isDemoFallbackEnabled()
-        ? getFallbackRewrite(input)
-        : await rewriteQuestion(input, input.result);
+    const rewrite = await rewriteQuestion(input, input.result, input.forceFallback);
     return NextResponse.json({ rewrite });
   } catch (error) {
     const message =

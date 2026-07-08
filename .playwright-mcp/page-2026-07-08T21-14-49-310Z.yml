@@ -1,0 +1,84 @@
+- main [ref=f3e2]:
+  - generic [ref=f3e3]:
+    - generic [ref=f3e5]:
+      - generic [ref=f3e6]:
+        - heading "VREAD Document Jury Workflow" [level=1] [ref=f3e7]
+        - paragraph [ref=f3e8]: Upload a PDF or EPUB, extract and segment text, generate candidate questions, run Fast and Strict LLM-as-a-Jury evaluation, rewrite weak questions, and export approved reading-comprehension output.
+      - generic [ref=f3e10]: Live OpenRouter
+    - generic [ref=f3e11]:
+      - generic [ref=f3e12]:
+        - application [ref=f3e14]:
+          - img
+          - img "Mini Map" [ref=f3e18]
+          - generic "Control Panel" [ref=f3e19]:
+            - button "Zoom In" [ref=f3e20] [cursor=pointer]:
+              - img [ref=f3e21]
+            - button "Zoom Out" [ref=f3e23] [cursor=pointer]:
+              - img [ref=f3e24]
+            - button "Fit View" [ref=f3e26] [cursor=pointer]:
+              - img [ref=f3e27]
+            - button "Toggle Interactivity" [ref=f3e29] [cursor=pointer]:
+              - img [ref=f3e30]
+          - link "React Flow attribution" [ref=f3e33] [cursor=pointer]:
+            - /url: https://reactflow.dev/attribution
+            - text: React Flow
+        - generic [ref=f3e35]:
+          - generic [ref=f3e36]:
+            - generic [ref=f3e37]:
+              - heading "Execution Logs" [level=2] [ref=f3e38]
+              - generic [ref=f3e39]: 0 events
+            - generic [ref=f3e41]: No workflow events yet.
+          - generic [ref=f3e42]:
+            - heading "Jury Detail View" [level=2] [ref=f3e44]
+            - generic [ref=f3e45]: Run Fast Jury or Strict Jury to inspect judge scores here.
+      - complementary [ref=f3e46]:
+        - generic [ref=f3e47]:
+          - generic [ref=f3e48]:
+            - heading "Workflow Control" [level=2] [ref=f3e49]
+            - paragraph [ref=f3e50]: Upload, run, inspect, export.
+          - generic [ref=f3e51]: Live OpenRouter
+        - generic [ref=f3e52]:
+          - generic [ref=f3e53]: Sample document
+          - combobox [ref=f3e54]:
+            - 'option "Sample: Bakery Orders" [selected]'
+            - 'option "Sample: Observatory Storm"'
+          - generic [ref=f3e55] [cursor=pointer]:
+            - img [ref=f3e56]
+            - text: Upload PDF / EPUB
+        - generic [ref=f3e59]:
+          - button "Run full" [ref=f3e60]:
+            - img [ref=f3e61]
+            - text: Run full
+          - button "From node" [ref=f3e63]:
+            - img [ref=f3e64]
+            - text: From node
+          - button "Fast Jury" [ref=f3e66]
+          - button "Strict Jury" [ref=f3e67]
+          - button "Rewrite" [ref=f3e68]:
+            - img [ref=f3e69]
+            - text: Rewrite
+          - button "Reset" [ref=f3e72]:
+            - img [ref=f3e73]
+            - text: Reset
+        - generic [ref=f3e76]:
+          - generic [ref=f3e77]:
+            - heading "Document Input" [level=3] [ref=f3e78]
+            - generic [ref=f3e79]: idle
+          - paragraph [ref=f3e80]: Upload PDF/EPUB or choose a built-in sample.
+          - generic [ref=f3e81]:
+            - button "overview" [ref=f3e82]
+            - button "input" [ref=f3e83]: input
+            - button "output" [ref=f3e85]: output
+          - button "Run selected step" [ref=f3e87]
+          - generic [ref=f3e88]:
+            - generic [ref=f3e89]:
+              - generic [ref=f3e90]:
+                - img [ref=f3e91]
+                - text: Object
+              - generic [ref=f3e94]: 4 keys
+            - generic [ref=f3e95]: "{ \"name\": \"Sample: Bakery Orders\", \"kind\": \"sample\", \"source\": \"sample\", \"wordCount\": 411 }"
+    - generic [ref=f3e96]:
+      - generic [ref=f3e97]:
+        - img [ref=f3e98]
+        - heading "Raw Workflow JSON" [level=2] [ref=f3e102]
+      - generic [ref=f3e103]: "{ \"document\": { \"name\": \"Sample: Bakery Orders\", \"kind\": \"sample\", \"source\": \"sample\", \"wordCount\": 411 } }"

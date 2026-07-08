@@ -13,10 +13,6 @@ import {
 
 type Scenario = "good" | "bad-evidence" | "ambiguous-easy";
 
-export function isDemoFallbackEnabled() {
-  return process.env.DEMO_FALLBACK_MODE?.trim().toLowerCase() === "true";
-}
-
 function detectScenario(input: JuryInput): Scenario {
   if (input.exampleId === "bad-evidence" || input.exampleId === "ambiguous-easy") {
     return input.exampleId;
@@ -42,6 +38,7 @@ function withFallbackMeta(judges: Omit<JudgeResult, "model" | "latencyMs">[], mo
   const baseLatency = mode === "fast" ? 460 : 780;
   return judges.map((judge, index) => ({
     ...judge,
+    provider: "demo" as const,
     model: mode === "fast" ? "demo/fallback-fast-jury" : `demo/fallback-${judge.judge}-judge`,
     latencyMs: mode === "fast" ? baseLatency : baseLatency + index * 95,
     usage: {
@@ -223,6 +220,7 @@ export function getFallbackJuryResult(input: JuryInput, mode: JuryMode): JuryRes
             reason: "This version is grounded in a concrete action and cannot be answered reliably without reading the excerpt.",
           }
         : undefined,
+    provider: "demo",
     model: mode === "fast" ? "demo/fallback-fast-jury" : "demo/fallback-chief-judge",
     latencyMs: mode === "fast" ? 460 : 1320,
     usage: {
@@ -264,6 +262,7 @@ export function getFallbackRewrite(input: JuryInput): RewriteResult {
   return RewriteResultSchema.parse({
     ...rewrite,
     source: "fallback",
+    provider: "demo",
     model: "demo/fallback-rewrite-agent",
     latencyMs: 610,
     usage: {
