@@ -22,17 +22,17 @@ const nodeTypes = {
 
 const positions: Record<WorkflowStepKey, { x: number; y: number }> = {
   documentInput: { x: 0, y: 120 },
-  textExtraction: { x: 230, y: 120 },
-  cleaning: { x: 460, y: 120 },
-  segmentation: { x: 690, y: 120 },
-  segmentSelection: { x: 920, y: 120 },
-  questionGeneration: { x: 1150, y: 120 },
-  fastJury: { x: 1380, y: 120 },
-  strictJury: { x: 1610, y: 120 },
-  rewrite: { x: 1840, y: 120 },
-  integrityChecks: { x: 2070, y: 120 },
-  vreadExport: { x: 2300, y: 120 },
-  finalOutput: { x: 2530, y: 120 },
+  textExtraction: { x: 170, y: 120 },
+  cleaning: { x: 340, y: 120 },
+  segmentation: { x: 510, y: 120 },
+  segmentSelection: { x: 680, y: 120 },
+  questionGeneration: { x: 850, y: 120 },
+  fastJury: { x: 1020, y: 120 },
+  strictJury: { x: 1190, y: 120 },
+  rewrite: { x: 1360, y: 120 },
+  integrityChecks: { x: 1530, y: 120 },
+  vreadExport: { x: 1700, y: 120 },
+  finalOutput: { x: 1870, y: 120 },
 };
 
 const links: Array<[WorkflowStepKey, WorkflowStepKey]> = [
@@ -103,8 +103,8 @@ export function WorkflowCanvas({
         edges={edges}
         nodeTypes={nodeTypes}
         fitView
-        fitViewOptions={{ padding: 0.03, minZoom: 0.54, maxZoom: 0.92 }}
-        minZoom={0.42}
+        fitViewOptions={{ padding: 0.03, minZoom: 0.48, maxZoom: 0.92 }}
+        minZoom={0.38}
         maxZoom={1.35}
         onNodeClick={(_, node) => onSelect(node.id as WorkflowStepKey)}
         proOptions={{ hideAttribution: true }}

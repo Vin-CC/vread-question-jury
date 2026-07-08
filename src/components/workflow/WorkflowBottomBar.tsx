@@ -28,12 +28,12 @@ export function WorkflowBottomBar({
   onCopy: () => void;
 }) {
   return (
-    <div className="fixed bottom-5 left-1/2 z-30 flex max-w-[calc(100vw-32px)] -translate-x-1/2 items-center gap-2 overflow-x-auto rounded-[28px] border border-white/80 bg-white/95 p-2 shadow-[0_24px_70px_rgba(79,70,229,0.18)] backdrop-blur">
+    <div className="fixed bottom-5 left-1/2 z-30 flex w-fit -translate-x-1/2 flex-nowrap items-center justify-center gap-1.5 rounded-[28px] border border-white/80 bg-white/95 p-1.5 shadow-[0_24px_70px_rgba(79,70,229,0.18)] backdrop-blur">
       <button
         type="button"
         disabled={busy}
         onClick={onRunOnce}
-        className="inline-flex h-11 shrink-0 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:border-violet-200 hover:text-violet-700 disabled:opacity-50"
+        className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 transition hover:border-violet-200 hover:text-violet-700 disabled:opacity-50"
       >
         <StepForward className="h-4 w-4" />
         Run selected
@@ -42,7 +42,7 @@ export function WorkflowBottomBar({
         type="button"
         disabled={busy}
         onClick={onRunFull}
-        className="inline-flex h-11 shrink-0 items-center gap-2 rounded-2xl bg-violet-600 px-5 text-sm font-black text-white shadow-lg shadow-violet-600/25 transition hover:bg-violet-700 disabled:opacity-50"
+        className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-2xl bg-violet-600 px-4 text-xs font-black text-white shadow-lg shadow-violet-600/25 transition hover:bg-violet-700 disabled:opacity-50"
       >
         <Play className="h-4 w-4" />
         Run full workflow
@@ -51,12 +51,12 @@ export function WorkflowBottomBar({
         type="button"
         disabled={busy}
         onClick={onRunFromSelected}
-        className="inline-flex h-11 shrink-0 items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-700 transition hover:border-violet-200 hover:text-violet-700 disabled:opacity-50"
+        className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-700 transition hover:border-violet-200 hover:text-violet-700 disabled:opacity-50"
       >
         <Sparkles className="h-4 w-4" />
         From selected
       </button>
-      <div className="inline-flex h-11 shrink-0 items-center gap-1 rounded-2xl border border-slate-200 bg-slate-50 p-1">
+      <div className="inline-flex h-10 shrink-0 items-center gap-1 rounded-2xl border border-slate-200 bg-slate-50 p-1">
         {(["demo", "live"] as const).map((mode) => (
           <button
             key={mode}
@@ -64,7 +64,7 @@ export function WorkflowBottomBar({
             disabled={busy}
             onClick={() => onRunModeChange(mode)}
             className={clsx(
-              "h-9 rounded-xl px-3 text-xs font-black uppercase transition",
+              "h-8 rounded-xl px-2.5 text-[11px] font-black uppercase transition",
               runtimeRunMode === mode
                 ? mode === "demo"
                   ? "bg-amber-500 text-white shadow-sm"
@@ -77,7 +77,7 @@ export function WorkflowBottomBar({
         ))}
         <span
           className={clsx(
-            "ml-1 pr-2 text-[11px] font-black uppercase",
+            "ml-0.5 pr-1.5 text-[10px] font-black uppercase",
           runtimeRunMode === "demo" ? "text-amber-700" : "text-emerald-700"
           )}
         >
@@ -87,7 +87,7 @@ export function WorkflowBottomBar({
       <button
         type="button"
         onClick={onReset}
-        className="inline-flex h-11 shrink-0 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-600 transition hover:border-red-200 hover:text-red-600"
+        className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 transition hover:border-red-200 hover:text-red-600"
       >
         <RotateCcw className="h-4 w-4" />
         Reset
@@ -95,7 +95,7 @@ export function WorkflowBottomBar({
       <button
         type="button"
         onClick={onExport}
-        className="inline-flex h-11 shrink-0 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:border-violet-200 hover:text-violet-700"
+        className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 transition hover:border-violet-200 hover:text-violet-700"
       >
         <Download className="h-4 w-4" />
         Export JSON
@@ -104,7 +104,7 @@ export function WorkflowBottomBar({
         type="button"
         disabled={!hasFinalOutput}
         onClick={onCopy}
-        className="inline-flex h-11 shrink-0 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:border-violet-200 hover:text-violet-700 disabled:opacity-45"
+        className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 transition hover:border-violet-200 hover:text-violet-700 disabled:opacity-45"
       >
         <Clipboard className="h-4 w-4" />
         Copy final
