@@ -1,12 +1,11 @@
-import { aiModelDisplayName } from "@/lib/ai/display";
 import type {
   GeneratedQuestion,
   IntegrityCheck,
   IntegrityCheckStatus,
   IntegrityReport,
-  LocalWorkflowRunSummary,
   VreadExportBundle,
   WorkflowData,
+  WorkflowRunSummary,
 } from "./types";
 
 const GLOBAL_SCORE_PASS_THRESHOLD = 75;
@@ -216,7 +215,7 @@ function resolveFinalFields(data: WorkflowData) {
 
 export function buildVreadExport(
   data: WorkflowData,
-  runSummary?: LocalWorkflowRunSummary
+  runSummary?: WorkflowRunSummary
 ): VreadExportBundle {
   const { finalQuestion, segment, jury } = resolveFinalFields(data);
   const metadata = data.document?.metadata;
@@ -269,18 +268,18 @@ export function collectModelsUsed(data: WorkflowData) {
   const models = new Set<string>();
 
   for (const question of data.generatedQuestions ?? []) {
-    if (question.model) models.add(aiModelDisplayName(question.model) ?? question.model);
+    if (question.model) models.add(question.model);
   }
 
   for (const jury of [data.fastJuryResult, data.strictJuryResult]) {
-    if (jury?.model) models.add(aiModelDisplayName(jury.model) ?? jury.model);
+    if (jury?.model) models.add(jury.model);
     for (const judge of jury?.judges ?? []) {
-      if (judge.model) models.add(aiModelDisplayName(judge.model) ?? judge.model);
+      if (judge.model) models.add(judge.model);
     }
   }
 
   if (data.rewrittenQuestion?.model) {
-    models.add(aiModelDisplayName(data.rewrittenQuestion.model) ?? data.rewrittenQuestion.model);
+    models.add(data.rewrittenQuestion.model);
   }
 
   return Array.from(models);

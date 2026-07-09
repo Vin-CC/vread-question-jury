@@ -6,10 +6,9 @@ import type {
   AiProviderSort,
   AiPublicStatus,
   AiReasoningEffort,
-  RuntimeRunMode,
 } from "./types";
 
-const providerNames: AiProviderName[] = ["openrouter", "openai", "anthropic", "demo"];
+const providerNames: AiProviderName[] = ["openrouter", "openai", "anthropic", "claude-cli"];
 const providerSorts: AiProviderSort[] = ["price", "throughput", "latency"];
 const reasoningEfforts: AiReasoningEffort[] = ["none", "low", "medium", "high"];
 
@@ -36,14 +35,14 @@ function parseProvider(rawProvider?: string): { provider: AiProviderName; config
   if (configuredProvider === "claude") {
     return { provider: "anthropic", configuredProvider };
   }
-  if (configuredProvider === "local") {
-    return { provider: "demo", configuredProvider };
+  if (configuredProvider === "claude-code" || configuredProvider === "claude_cli") {
+    return { provider: "claude-cli", configuredProvider };
   }
   if (providerNames.includes(configuredProvider as AiProviderName)) {
     return { provider: configuredProvider as AiProviderName, configuredProvider };
   }
   throw new AiProviderError({
-    message: `AI_PROVIDER must be one of openrouter, openai (or codex), anthropic (or claude), or local. Received "${configuredProvider}".`,
+    message: `AI_PROVIDER must be one of openrouter, openai (or codex), anthropic (or claude), or claude-cli (local Claude Code login). Received "${configuredProvider}".`,
   });
 }
 
@@ -65,7 +64,8 @@ function parseReasoningEffort() {
 }
 
 function requiredApiKey(provider: AiProviderName, configuredProvider: string) {
-  if (provider === "demo") return undefined;
+  // claude-cli shells out to the local Claude Code binary, which carries its own login.
+  if (provider === "claude-cli") return undefined;
   if (provider === "openrouter") {
     const apiKey = cleanEnv("OPENROUTER_API_KEY");
     if (!apiKey) throw new AiProviderError({ message: "OPENROUTER_API_KEY is not configured." });
@@ -81,62 +81,21 @@ function requiredApiKey(provider: AiProviderName, configuredProvider: string) {
   if (!apiKey && configuredProvider === "codex") {
     throw new AiProviderError({
       message:
-        "AI_PROVIDER=codex maps to the OpenAI runtime provider. Codex is a development agent, while this app needs an LLM runtime provider. Configure OPENAI_API_KEY and AI_* model variables, or set AI_PROVIDER=openrouter/local.",
+        "AI_PROVIDER=codex maps to the OpenAI runtime provider. Codex is a development agent, while this app needs an LLM runtime provider. Configure OPENAI_API_KEY and AI_* model variables, or set AI_PROVIDER=openrouter.",
     });
   }
   if (!apiKey) throw new AiProviderError({ message: "OPENAI_API_KEY is not configured." });
   return apiKey;
 }
 
-function apiKeyErrorMessage(provider: AiProviderName, configuredProvider: string) {
-  try {
-    requiredApiKey(provider, configuredProvider);
-    return undefined;
-  } catch (error) {
-    return error instanceof Error ? error.message : "Live mode is not configured.";
-  }
-}
-
-function liveModeError(message: string) {
-  return new AiProviderError({
-    message: `Live mode is not configured. ${message} Add an API key or switch to Local mode.`,
-  });
-}
-
-export function getAiConfig(options: { forceDemoFallback?: boolean; runtimeMode?: RuntimeRunMode } = {}): AiConfig {
-  const demoFallbackMode =
-    options.forceDemoFallback || cleanEnv("DEMO_FALLBACK_MODE")?.toLowerCase() === "true";
+export function getAiConfig(): AiConfig {
   const parsed = parseProvider(cleanEnv("AI_PROVIDER"));
-  const runtimeMode: RuntimeRunMode =
-    options.runtimeMode ?? (demoFallbackMode || parsed.provider === "demo" ? "demo" : "live");
-
-  let provider: AiProviderName;
-  if (runtimeMode === "demo") {
-    provider = "demo";
-  } else {
-    if (parsed.provider === "demo") {
-      throw liveModeError("AI_PROVIDER is set to local mode.");
-    }
-    provider = parsed.provider;
-  }
-
-  let apiKey: string | undefined;
-  try {
-    apiKey = requiredApiKey(provider, parsed.configuredProvider);
-  } catch (error) {
-    if (runtimeMode === "live" && error instanceof Error && /API_KEY is not configured/.test(error.message)) {
-      throw liveModeError(error.message);
-    }
-    throw error;
-  }
 
   return {
-    provider,
+    provider: parsed.provider,
     configuredProvider: parsed.configuredProvider,
-    demoFallbackMode,
-    runtimeMode,
-    apiKey,
-    models: resolveModels(provider),
+    apiKey: requiredApiKey(parsed.provider, parsed.configuredProvider),
+    models: resolveModels(parsed.provider),
     providerSort: parseProviderSort(),
     temperature: parseNumber("AI_TEMPERATURE", 0.1),
     maxOutputTokens: Math.trunc(parseNumber("AI_MAX_OUTPUT_TOKENS", 1600)),
@@ -145,25 +104,11 @@ export function getAiConfig(options: { forceDemoFallback?: boolean; runtimeMode?
 }
 
 export function getAiPublicStatus(): AiPublicStatus {
-  const parsed = parseProvider(cleanEnv("AI_PROVIDER"));
-  const demoFallbackMode = cleanEnv("DEMO_FALLBACK_MODE")?.toLowerCase() === "true";
-  const liveProvider = parsed.provider === "demo" ? undefined : parsed.provider;
-  const liveConfigurationError = liveProvider
-    ? apiKeyErrorMessage(liveProvider, parsed.configuredProvider)
-    : "AI_PROVIDER is set to local mode.";
-  const liveAvailable = Boolean(liveProvider && !liveConfigurationError);
-  const defaultRuntimeMode: RuntimeRunMode =
-    demoFallbackMode || parsed.provider === "demo" || !liveAvailable ? "demo" : "live";
-  const config = getAiConfig({ runtimeMode: defaultRuntimeMode });
+  const config = getAiConfig();
 
   return {
     provider: config.provider,
     configuredProvider: config.configuredProvider,
-    liveProvider,
-    liveAvailable,
-    defaultRuntimeMode,
-    liveConfigurationError,
-    demoFallbackMode: config.demoFallbackMode,
     models: config.models,
     providerSort: config.providerSort,
     temperature: config.temperature,

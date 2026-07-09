@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ChevronDown, ListChecks } from "lucide-react";
 import type { WorkflowLog } from "@/lib/workflow/types";
 import { clsx } from "clsx";
-import { aiModelDisplayName, aiProviderDisplayName, offlineReasonDisplay, runtimeModeDisplayName } from "@/lib/ai/display";
+import { aiProviderDisplayName } from "@/lib/ai/display";
 
 type LogUsage = NonNullable<WorkflowLog["ai"]>["usage"];
 
@@ -68,12 +68,10 @@ export function WorkflowLogs({ logs }: { logs: WorkflowLog[] }) {
                   {log.ai && (
                     <div className="mt-1 flex flex-wrap gap-2 pl-[92px] text-[11px] text-slate-500">
                       <span>task {log.ai.task}</span>
-                      {log.ai.requestedRunMode && <span>requested {runtimeModeDisplayName(log.ai.requestedRunMode)}</span>}
-                      <span>actualProvider {aiProviderDisplayName(log.ai.provider)}</span>
-                      <span>model {aiModelDisplayName(log.ai.model)}</span>
+                      <span>provider {aiProviderDisplayName(log.ai.provider)}</span>
+                      <span>model {log.ai.model}</span>
                       <span>latency {log.ai.latencyMs}ms</span>
                       {usage && <span>tokens {usage}</span>}
-                      {log.ai.fallbackReason && <span>offline {offlineReasonDisplay(log.ai.fallbackReason)}</span>}
                     </div>
                   )}
                 </div>

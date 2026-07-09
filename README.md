@@ -124,14 +124,12 @@ Fast Jury Mode uses one AI provider call to simulate all judges. Strict Multi-Ag
 
 ## AI Provider Configuration
 
-All runtime LLM calls go through `src/lib/ai`. Workflow and jury code call the generic AI gateway, so switching providers is either an environment change or a per-run UI mode selection.
+All runtime LLM calls go through `src/lib/ai`. Workflow and jury code call the generic AI gateway, so switching providers is an environment change.
 
 Environment variables:
 
 ```bash
-AI_PROVIDER=openrouter # openrouter | openai | local
-# Legacy/internal env name for Local mode.
-DEMO_FALLBACK_MODE=true
+AI_PROVIDER=openrouter # openrouter | openai | anthropic
 
 OPENROUTER_API_KEY=
 OPENAI_API_KEY=
@@ -169,34 +167,16 @@ The generic `AI_*` model variables take precedence when both are set.
 
 All model responses are parsed as JSON and validated with Zod before use.
 
-### Runtime Local / Live Toggle
+### Runtime Provider
 
-The bottom execution bar has a runtime mode control:
+Every run calls the live provider configured through `AI_PROVIDER`. The provider API key is required: if it is missing, the API returns a clear configuration error (for example `OPENROUTER_API_KEY is not configured.`) and the UI keeps the failure visible.
 
-- `Local`: forces the server to use the deterministic local provider for that request. It does not call external APIs.
-- `Live`: asks the server to use the configured live provider from `AI_PROVIDER`, currently `openrouter` or `openai`.
-
-The browser only sends a requested Local or Live runtime mode in API request bodies. `OPENROUTER_API_KEY` and `OPENAI_API_KEY` are read only on the server and are never exposed to client-side code.
-
-Default UI mode is derived from environment:
-
-- `DEMO_FALLBACK_MODE=true` defaults the UI to Local. This is a legacy/internal env name kept for compatibility.
-- `DEMO_FALLBACK_MODE=false` defaults the UI to Live only when the configured live provider has its API key.
-- `AI_PROVIDER=local` defaults to Local. Selecting Live will return a clear configuration error unless a live provider is configured.
-
-If Live mode is selected but the required key is missing, the API returns:
-
-```text
-Live mode is not configured. Add an API key or switch to Local mode.
-```
-
-The UI keeps the failure visible and offers **Retry in Local mode** instead of silently hiding the live-provider error.
+`OPENROUTER_API_KEY`, `OPENAI_API_KEY`, and `ANTHROPIC_API_KEY` are read only on the server and are never exposed to client-side code.
 
 ### OpenRouter Setup
 
 ```bash
 AI_PROVIDER=openrouter
-DEMO_FALLBACK_MODE=false
 OPENROUTER_API_KEY=your_openrouter_key
 AI_FAST_MODEL=openai/gpt-4o-mini
 AI_STRICT_MODEL=openai/gpt-4o-mini
@@ -211,7 +191,6 @@ OpenRouter provider sorting is supported with `AI_PROVIDER_SORT=price`, `through
 
 ```bash
 AI_PROVIDER=openai
-DEMO_FALLBACK_MODE=false
 OPENAI_API_KEY=your_openai_key
 AI_FAST_MODEL=gpt-4o-mini
 AI_STRICT_MODEL=gpt-4o-mini
@@ -221,19 +200,6 @@ AI_QUESTION_MODEL=gpt-4o-mini
 ```
 
 `AI_PROVIDER=codex` is treated as an OpenAI runtime provider alias. Codex itself is a development agent, so this app still needs `OPENAI_API_KEY` and runtime model names.
-
-### Local Mode Setup
-
-For presentations, set:
-
-```bash
-AI_PROVIDER=local
-DEMO_FALLBACK_MODE=true
-```
-
-Local mode prevents the app from depending on network access, rate limits, or an API key. It provides deterministic question generation outputs, jury results, and rewrite results. The UI labels these runs as **Local mode**.
-
-If a Live provider call fails, the workflow shows the live error and offers **Retry in Local mode** for the failed step.
 
 ## Run Locally
 
@@ -251,7 +217,6 @@ OpenRouter mode:
 ```bash
 AI_PROVIDER=openrouter
 OPENROUTER_API_KEY=your_openrouter_key
-DEMO_FALLBACK_MODE=false
 ```
 
 OpenAI mode:
@@ -259,14 +224,6 @@ OpenAI mode:
 ```bash
 AI_PROVIDER=openai
 OPENAI_API_KEY=your_openai_key
-DEMO_FALLBACK_MODE=false
-```
-
-Local mode:
-
-```bash
-AI_PROVIDER=local
-DEMO_FALLBACK_MODE=true
 ```
 
 Quality checks:
@@ -279,17 +236,16 @@ npm run build
 
 ## Suggested Presentation Flow
 
-1. Start in local mode for a guaranteed presentation.
-2. Show the dark workflow graph and explain the document-to-question pipeline.
-3. Upload a real text-based PDF/EPUB.
-4. Click **Run full** and watch nodes progress.
-5. Click Segmentation to inspect segment outputs.
-6. Click Question Generation to inspect candidate questions.
-7. Show Fast Jury and Strict Jury scores in the jury detail panel.
-8. Show Rewrite for a weak question.
-9. Show Integrity Checks and explain the production-inspired validation layer.
-10. Show VREAD Export and copy/export the JSON or copy the SQL preview.
-11. Show Final Output and export/copy the JSON.
+1. Show the dark workflow graph and explain the document-to-question pipeline.
+2. Upload a real text-based PDF/EPUB.
+3. Click **Run full** and watch nodes progress.
+4. Click Segmentation to inspect segment outputs.
+5. Click Question Generation to inspect candidate questions.
+6. Show Fast Jury and Strict Jury scores in the jury detail panel.
+7. Show Rewrite for a weak question.
+8. Show Integrity Checks and explain the production-inspired validation layer.
+9. Show VREAD Export and copy/export the JSON or copy the SQL preview.
+10. Show Final Output and export/copy the JSON.
 
 ## Project Boundary
 

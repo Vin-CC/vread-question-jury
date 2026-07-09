@@ -6,34 +6,25 @@ import {
   type GeneratedQuestion,
   type TextSegment,
 } from "./types";
-import type { RuntimeRunMode } from "@/lib/ai/types";
 
-export async function generateQuestionsForSegment(
-  segment: TextSegment,
-  options: { forceFallback?: boolean; runtimeMode?: RuntimeRunMode } = {}
-): Promise<GeneratedQuestion[]> {
+export async function generateQuestionsForSegment(segment: TextSegment): Promise<GeneratedQuestion[]> {
   const prompt = buildQuestionGenerationPrompt(segment);
-  const response = await completeWithAi(
-    {
-      task: "questionGeneration",
-      runtimeMode: options.runtimeMode,
-      messages: [
-        { role: "system", content: prompt.system },
-        { role: "user", content: prompt.user },
-      ],
-      responseFormat: "json",
-      maxOutputTokens: 1200,
-      temperature: 0.2,
-    },
-    { forceDemoFallback: options.forceFallback }
-  );
+  const response = await completeWithAi({
+    task: "questionGeneration",
+    messages: [
+      { role: "system", content: prompt.system },
+      { role: "user", content: prompt.user },
+    ],
+    responseFormat: "json",
+    maxOutputTokens: 1200,
+    temperature: 0.2,
+  });
 
   const parsed = QuestionGenerationResponseSchema.parse(parseJsonObject(response.content));
   return parsed.questions.map((question, index) => ({
     ...question,
-    id: `${response.provider === "demo" ? "local" : "live"}-q-${segment.index}-${index}`,
+    id: `q-${segment.index}-${index}`,
     segmentIndex: segment.index,
-    source: response.provider === "demo" ? "local" : "live",
     provider: response.provider,
     model: response.model,
     latencyMs: response.latencyMs,

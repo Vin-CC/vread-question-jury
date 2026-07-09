@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { AiProviderName, AiTask, RuntimeRunMode } from "@/lib/ai/types";
+import type { AiProviderName, AiTask } from "@/lib/ai/types";
 import type { JuryResult, RewriteResult } from "@/lib/jury/types";
 
 export type WorkflowNodeStatus = "idle" | "running" | "success" | "error";
@@ -64,7 +64,6 @@ export type GeneratedQuestion = {
   question: string;
   answer: string;
   rationale: string;
-  source?: "live" | "local";
   provider?: AiProviderName;
   model?: string;
   latencyMs?: number;
@@ -109,7 +108,7 @@ export type VreadExport = {
     jury_score: number;
     integrity_status: IntegrityCheckStatus;
   }>;
-  run_summary?: LocalWorkflowRunSummary;
+  run_summary?: WorkflowRunSummary;
 };
 
 export type VreadExportBundle = {
@@ -117,7 +116,7 @@ export type VreadExportBundle = {
   sqlPreview: string;
 };
 
-export type LocalWorkflowRunSummary = {
+export type WorkflowRunSummary = {
   runId: string;
   startedAt: string;
   completedAt?: string;
@@ -149,7 +148,7 @@ export type WorkflowData = {
   rewrittenQuestion?: RewriteResult;
   integrityReport?: IntegrityReport;
   vreadExport?: VreadExportBundle;
-  runSummary?: LocalWorkflowRunSummary;
+  runSummary?: WorkflowRunSummary;
   finalApprovedQuestion?: {
     question: string;
     answer: string;
@@ -157,7 +156,7 @@ export type WorkflowData = {
     jury?: JuryResult;
     integrity?: IntegrityReport;
     vreadExport?: VreadExportBundle;
-    runSummary?: LocalWorkflowRunSummary;
+    runSummary?: WorkflowRunSummary;
   };
 };
 
@@ -169,11 +168,9 @@ export type WorkflowLog = {
   step?: WorkflowStepKey;
   ai?: {
     task: AiTask;
-    requestedRunMode?: RuntimeRunMode;
     provider: AiProviderName;
     model: string;
     latencyMs: number;
-    fallbackReason?: string;
     usage?: {
       promptTokens?: number;
       completionTokens?: number;
@@ -188,8 +185,7 @@ export const GeneratedQuestionSchema = z.object({
   question: z.string().min(8).max(800),
   answer: z.string().min(1).max(500),
   rationale: z.string().min(8).max(1000),
-  source: z.enum(["live", "local"]).optional(),
-  provider: z.enum(["openrouter", "openai", "anthropic", "demo"]).optional(),
+  provider: z.enum(["openrouter", "openai", "anthropic", "claude-cli"]).optional(),
   model: z.string().optional(),
   latencyMs: z.number().int().nonnegative().optional(),
   usage: z

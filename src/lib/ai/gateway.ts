@@ -2,25 +2,22 @@ import { getAiConfig } from "./config";
 import { AiProviderError } from "./errors";
 import { modelForTask } from "./model-routing";
 import { AnthropicProvider } from "./providers/anthropic-provider";
-import { DemoProvider } from "./providers/demo-provider";
+import { ClaudeCliProvider } from "./providers/claude-cli-provider";
 import { OpenAIProvider } from "./providers/openai-provider";
 import { OpenRouterProvider } from "./providers/openrouter-provider";
 import type { AiCompletionRequest, AiCompletionResponse, AiProvider } from "./types";
 
-export function createAiProvider(options: { forceDemoFallback?: boolean; runtimeMode?: AiCompletionRequest["runtimeMode"] } = {}): AiProvider {
-  const config = getAiConfig(options);
-  if (config.provider === "demo") return new DemoProvider();
+export function createAiProvider(): AiProvider {
+  const config = getAiConfig();
   if (config.provider === "openai") return new OpenAIProvider(config);
   if (config.provider === "anthropic") return new AnthropicProvider(config);
+  if (config.provider === "claude-cli") return new ClaudeCliProvider(config);
   return new OpenRouterProvider(config);
 }
 
-export async function completeWithAi(
-  request: AiCompletionRequest,
-  options: { forceDemoFallback?: boolean } = {}
-): Promise<AiCompletionResponse> {
-  const config = getAiConfig({ ...options, runtimeMode: request.runtimeMode });
-  const provider = createAiProvider({ ...options, runtimeMode: request.runtimeMode });
+export async function completeWithAi(request: AiCompletionRequest): Promise<AiCompletionResponse> {
+  const config = getAiConfig();
+  const provider = createAiProvider();
   const started = Date.now();
   const model = request.model || modelForTask(config.models, request.task);
 

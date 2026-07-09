@@ -9,18 +9,13 @@ const RewriteRequestSchema = JuryInputSchema.extend({
     summary: true,
     judges: true,
   }).optional(),
-  forceFallback: z.boolean().optional(),
-  runtimeRunMode: z.enum(["demo", "live"]).optional(),
 });
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const input = RewriteRequestSchema.parse(body);
-    const rewrite = await rewriteQuestion(input, input.result, {
-      forceFallback: input.forceFallback,
-      runtimeMode: input.runtimeRunMode,
-    });
+    const rewrite = await rewriteQuestion(input, input.result);
     return NextResponse.json({ rewrite });
   } catch (error) {
     const message =
@@ -30,6 +25,6 @@ export async function POST(request: Request) {
           ? error.message
           : "Unexpected rewrite error.";
 
-    return NextResponse.json({ error: message, fallbackAvailable: true }, { status: 400 });
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 }

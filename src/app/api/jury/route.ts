@@ -5,24 +5,13 @@ import { JuryInputSchema } from "@/lib/jury/types";
 
 const JuryRequestSchema = JuryInputSchema.extend({
   mode: z.enum(["fast", "strict"]),
-  forceFallback: z.boolean().optional(),
-  runtimeRunMode: z.enum(["demo", "live"]).optional(),
 });
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const input = JuryRequestSchema.parse(body);
-    const result =
-      input.mode === "fast"
-        ? await runFastJury(input, {
-            forceFallback: input.forceFallback,
-            runtimeMode: input.runtimeRunMode,
-          })
-        : await runStrictJury(input, {
-            forceFallback: input.forceFallback,
-            runtimeMode: input.runtimeRunMode,
-          });
+    const result = input.mode === "fast" ? await runFastJury(input) : await runStrictJury(input);
     return NextResponse.json({ result });
   } catch (error) {
     const message =
@@ -32,6 +21,6 @@ export async function POST(request: Request) {
           ? error.message
           : "Unexpected jury error.";
 
-    return NextResponse.json({ error: message, fallbackAvailable: true }, { status: 400 });
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 }

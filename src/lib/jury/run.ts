@@ -21,7 +21,7 @@ import {
   type JuryResult,
   type RewriteResult,
 } from "./types";
-import type { AiChatMessage, AiCompletionResponse, AiTask, RuntimeRunMode } from "@/lib/ai/types";
+import type { AiChatMessage, AiCompletionResponse, AiTask } from "@/lib/ai/types";
 
 function messagesFromPrompt(prompt: { system: string; user: string }): AiChatMessage[] {
   return [
@@ -59,7 +59,6 @@ function attachJuryMetadata(
 ): JuryResult {
   return {
     ...result,
-    source: meta.provider === "demo" ? "local" : "live",
     provider: meta.provider,
     model: meta.model,
     latencyMs: meta.latencyMs,
@@ -67,21 +66,14 @@ function attachJuryMetadata(
   };
 }
 
-export async function runFastJury(
-  input: JuryInput,
-  options: { forceFallback?: boolean; runtimeMode?: RuntimeRunMode } = {}
-): Promise<JuryResult> {
+export async function runFastJury(input: JuryInput): Promise<JuryResult> {
   const prompt = buildFastJuryPrompt(input);
-  const response = await completeWithAi(
-    {
-      task: "fastJury",
-      runtimeMode: options.runtimeMode,
-      messages: messagesFromPrompt(prompt),
-      responseFormat: "json",
-      maxOutputTokens: 2400,
-    },
-    { forceDemoFallback: options.forceFallback }
-  );
+  const response = await completeWithAi({
+    task: "fastJury",
+    messages: messagesFromPrompt(prompt),
+    responseFormat: "json",
+    maxOutputTokens: 2400,
+  });
 
   const parsedJson = parseJsonObject(response.content);
   const validated = JuryResultSchema.parse(parsedJson);
@@ -119,46 +111,31 @@ const judgeTasks: Record<JudgeName, AiTask> = {
   pedagogy: "pedagogyJudge",
 };
 
-async function runJudge(
-  input: JuryInput,
-  judgeName: JudgeName,
-  options: { forceFallback?: boolean; runtimeMode?: RuntimeRunMode }
-): Promise<JudgeResult> {
-  const response = await completeWithAi(
-    {
-      task: judgeTasks[judgeName],
-      runtimeMode: options.runtimeMode,
-      messages: messagesFromPrompt(builders[judgeName](input)),
-      responseFormat: "json",
-      maxOutputTokens: 900,
-    },
-    { forceDemoFallback: options.forceFallback }
-  );
+async function runJudge(input: JuryInput, judgeName: JudgeName): Promise<JudgeResult> {
+  const response = await completeWithAi({
+    task: judgeTasks[judgeName],
+    messages: messagesFromPrompt(builders[judgeName](input)),
+    responseFormat: "json",
+    maxOutputTokens: 900,
+  });
   const parsedJson = parseJsonObject(response.content);
   const validated = JudgeResultSchema.parse(parsedJson);
   return attachJudgeMetadata(validated, { ...response, usage: tokenUsage(response) });
 }
 
-export async function runStrictJury(
-  input: JuryInput,
-  options: { forceFallback?: boolean; runtimeMode?: RuntimeRunMode } = {}
-): Promise<JuryResult> {
+export async function runStrictJury(input: JuryInput): Promise<JuryResult> {
   const judges = await Promise.all(
     (["evidence", "ambiguity", "antiCheat", "clarity", "pedagogy"] as const).map((judge) =>
-      runJudge(input, judge, options)
+      runJudge(input, judge)
     )
   );
 
-  const chiefResponse = await completeWithAi(
-    {
-      task: "chiefJudge",
-      runtimeMode: options.runtimeMode,
-      messages: messagesFromPrompt(buildChiefJudgePrompt(input, judges)),
-      responseFormat: "json",
-      maxOutputTokens: 1800,
-    },
-    { forceDemoFallback: options.forceFallback }
-  );
+  const chiefResponse = await completeWithAi({
+    task: "chiefJudge",
+    messages: messagesFromPrompt(buildChiefJudgePrompt(input, judges)),
+    responseFormat: "json",
+    maxOutputTokens: 1800,
+  });
 
   const parsedJson = parseJsonObject(chiefResponse.content);
   const validated = JuryResultSchema.parse(parsedJson);
@@ -187,25 +164,19 @@ export async function runStrictJury(
 
 export async function rewriteQuestion(
   input: JuryInput,
-  result?: Pick<JuryResult, "finalDecision" | "summary" | "judges">,
-  options: { forceFallback?: boolean; runtimeMode?: RuntimeRunMode } = {}
+  result?: Pick<JuryResult, "finalDecision" | "summary" | "judges">
 ): Promise<RewriteResult> {
-  const response = await completeWithAi(
-    {
-      task: "rewrite",
-      runtimeMode: options.runtimeMode,
-      messages: messagesFromPrompt(buildRewritePrompt(input, result)),
-      responseFormat: "json",
-      maxOutputTokens: 1000,
-    },
-    { forceDemoFallback: options.forceFallback }
-  );
+  const response = await completeWithAi({
+    task: "rewrite",
+    messages: messagesFromPrompt(buildRewritePrompt(input, result)),
+    responseFormat: "json",
+    maxOutputTokens: 1000,
+  });
 
   const parsedJson = parseJsonObject(response.content);
   const validated = RewriteResultSchema.parse(parsedJson);
   return {
     ...validated,
-    source: response.provider === "demo" ? "local" : "live",
     provider: response.provider,
     model: response.model,
     latencyMs: response.latencyMs,

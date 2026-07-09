@@ -1,14 +1,8 @@
 import { Clipboard, Download, Play, RotateCcw, Sparkles, StepForward } from "lucide-react";
-import { clsx } from "clsx";
-import { runtimeModeDisplayName } from "@/lib/ai/display";
-import type { RuntimeRunMode } from "@/lib/ai/types";
 
 export function WorkflowBottomBar({
   busy,
-  modeLabel,
-  runtimeRunMode,
   hasFinalOutput,
-  onRunModeChange,
   onRunOnce,
   onRunFull,
   onRunFromSelected,
@@ -17,10 +11,7 @@ export function WorkflowBottomBar({
   onCopy,
 }: {
   busy: boolean;
-  modeLabel: string;
-  runtimeRunMode: RuntimeRunMode;
   hasFinalOutput: boolean;
-  onRunModeChange: (mode: RuntimeRunMode) => void;
   onRunOnce: () => void;
   onRunFull: () => void;
   onRunFromSelected: () => void;
@@ -57,34 +48,6 @@ export function WorkflowBottomBar({
         <Sparkles className="h-4 w-4" />
         From selected
       </button>
-      <div className="inline-flex h-10 shrink-0 items-center gap-1 rounded-2xl border border-slate-200 bg-slate-50 p-1">
-        {(["demo", "live"] as const).map((mode) => (
-          <button
-            key={mode}
-            type="button"
-            disabled={busy}
-            onClick={() => onRunModeChange(mode)}
-            className={clsx(
-              "h-8 rounded-xl px-2.5 text-[11px] font-black uppercase transition",
-              runtimeRunMode === mode
-                ? mode === "demo"
-                  ? "bg-amber-500 text-white shadow-sm"
-                  : "bg-emerald-600 text-white shadow-sm"
-                : "text-slate-500 hover:bg-white hover:text-violet-700"
-            )}
-          >
-            {runtimeModeDisplayName(mode)}
-          </button>
-        ))}
-        <span
-          className={clsx(
-            "ml-0.5 pr-1.5 text-[10px] font-black uppercase",
-          runtimeRunMode === "demo" ? "text-amber-700" : "text-emerald-700"
-          )}
-        >
-          {modeLabel}
-        </span>
-      </div>
       <button
         type="button"
         onClick={onReset}

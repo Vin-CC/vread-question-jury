@@ -30,12 +30,13 @@ const defaultModels: Record<AiProviderName, Record<"question" | "fast" | "strict
     chief: "claude-opus-4-8",
     rewrite: "claude-opus-4-8",
   },
-  demo: {
-    question: "demo/question-generator",
-    fast: "demo/fast-jury",
-    strict: "demo/strict-judge",
-    chief: "demo/chief-judge",
-    rewrite: "demo/rewrite-agent",
+  // Model aliases resolved by the Claude Code CLI against the local subscription.
+  "claude-cli": {
+    question: "sonnet",
+    fast: "haiku",
+    strict: "sonnet",
+    chief: "sonnet",
+    rewrite: "sonnet",
   },
 };
 

@@ -15,17 +15,12 @@ const SegmentSchema = z.object({
 
 const RequestSchema = z.object({
   segment: SegmentSchema,
-  forceFallback: z.boolean().optional(),
-  runtimeRunMode: z.enum(["demo", "live"]).optional(),
 });
 
 export async function POST(request: Request) {
   try {
     const body = RequestSchema.parse(await request.json());
-    const questions = await generateQuestionsForSegment(body.segment, {
-      forceFallback: body.forceFallback,
-      runtimeMode: body.runtimeRunMode,
-    });
+    const questions = await generateQuestionsForSegment(body.segment);
     return NextResponse.json({ questions });
   } catch (error) {
     const message =
@@ -34,6 +29,6 @@ export async function POST(request: Request) {
         : error instanceof Error
           ? error.message
           : "Question generation failed.";
-    return NextResponse.json({ error: message, fallbackAvailable: true }, { status: 400 });
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 }

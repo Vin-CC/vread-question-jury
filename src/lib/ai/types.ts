@@ -1,6 +1,4 @@
-export type AiProviderName = "openrouter" | "openai" | "anthropic" | "demo";
-
-export type RuntimeRunMode = "demo" | "live";
+export type AiProviderName = "openrouter" | "openai" | "anthropic" | "claude-cli";
 
 export type AiTask =
   | "questionGeneration"
@@ -21,7 +19,6 @@ export type AiChatMessage = {
 export type AiCompletionRequest = {
   task: AiTask;
   messages: AiChatMessage[];
-  runtimeMode?: RuntimeRunMode;
   responseFormat?: "json";
   temperature?: number;
   maxOutputTokens?: number;
@@ -55,8 +52,7 @@ export type AiModelConfig = Record<AiTask, string>;
 export type AiConfig = {
   provider: AiProviderName;
   configuredProvider: string;
-  demoFallbackMode: boolean;
-  runtimeMode: RuntimeRunMode;
+  // Absent for claude-cli, which authenticates through the local Claude Code login.
   apiKey?: string;
   models: AiModelConfig;
   providerSort?: AiProviderSort;
@@ -68,11 +64,6 @@ export type AiConfig = {
 export type AiPublicStatus = {
   provider: AiProviderName;
   configuredProvider: string;
-  liveProvider?: Exclude<AiProviderName, "demo">;
-  liveAvailable: boolean;
-  defaultRuntimeMode: RuntimeRunMode;
-  liveConfigurationError?: string;
-  demoFallbackMode: boolean;
   models: AiModelConfig;
   providerSort?: AiProviderSort;
   temperature: number;

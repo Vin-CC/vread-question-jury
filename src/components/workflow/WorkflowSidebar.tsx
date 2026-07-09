@@ -12,7 +12,7 @@ import {
 import { clsx } from "clsx";
 import { DataViewer } from "@/components/workflow/DataViewer";
 import { ScoreBar, StatusBadge } from "@/components/status";
-import { aiModelDisplayName, aiProviderDisplayName, offlineReasonDisplay, runtimeModeDisplayName } from "@/lib/ai/display";
+import { aiProviderDisplayName } from "@/lib/ai/display";
 import type {
   GeneratedQuestion,
   InspectionAnchor,
@@ -76,12 +76,10 @@ function LogsTab({ logs }: { logs: WorkflowLog[] }) {
             </div>
             {log.ai && (
               <div className="mt-1 flex flex-wrap gap-2 pl-[92px] text-[11px] text-slate-500">
-                {log.ai.requestedRunMode && <span>requested {runtimeModeDisplayName(log.ai.requestedRunMode)}</span>}
-                <span>actualProvider {aiProviderDisplayName(log.ai.provider)}</span>
-                <span>model {aiModelDisplayName(log.ai.model)}</span>
+                <span>provider {aiProviderDisplayName(log.ai.provider)}</span>
+                <span>model {log.ai.model}</span>
                 <span>latency {log.ai.latencyMs}ms</span>
                 {usage && <span>tokens {usage}</span>}
-                {log.ai.fallbackReason && <span>offline {offlineReasonDisplay(log.ai.fallbackReason)}</span>}
               </div>
             )}
           </div>
@@ -99,7 +97,6 @@ export function WorkflowSidebar({
   selectedSegmentIndex,
   selectedQuestionId,
   busy,
-  sourceLabel,
   selectedModel,
   onUpload,
   onRunFull,
@@ -125,7 +122,6 @@ export function WorkflowSidebar({
   selectedSegmentIndex: number;
   selectedQuestionId?: string;
   busy: boolean;
-  sourceLabel: string;
   selectedModel?: string;
   onUpload: (file: File) => void;
   onRunFull: () => void;
@@ -160,8 +156,7 @@ export function WorkflowSidebar({
     label: selectedStep.label,
     status: selectedStep.status,
     summary: selectedStep.summary,
-    provider: sourceLabel,
-    model: aiModelDisplayName(selectedModel),
+    model: selectedModel,
     runSummary,
     startedAt: selectedStep.startedAt,
     completedAt: selectedStep.completedAt,
@@ -184,9 +179,6 @@ export function WorkflowSidebar({
             <h2 className="mt-1 text-lg font-black text-slate-950">{selectedStep.label}</h2>
             <p className="mt-1 line-clamp-2 text-xs text-slate-500">{selectedStep.summary}</p>
           </div>
-          <span className="shrink-0 rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-[11px] font-black uppercase text-violet-700">
-            {sourceLabel}
-          </span>
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
           {tabs.map((tab) => {

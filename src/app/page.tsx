@@ -7,8 +7,8 @@ import { WorkflowCanvas } from "@/components/workflow/WorkflowCanvas";
 import { InspectionPopover } from "@/components/workflow/InspectionPopover";
 import { WorkflowSidebar } from "@/components/workflow/WorkflowSidebar";
 import { WorkflowBottomBar } from "@/components/workflow/WorkflowBottomBar";
-import { aiProviderDisplayName, runtimeModeBadge, toUserFacingAiValue } from "@/lib/ai/display";
-import type { AiProviderName, AiPublicStatus, AiTask, RuntimeRunMode } from "@/lib/ai/types";
+import { aiProviderDisplayName, toUserFacingAiValue } from "@/lib/ai/display";
+import type { AiProviderName, AiPublicStatus, AiTask } from "@/lib/ai/types";
 import type { JuryInput, JuryMode, JuryResult, RewriteResult } from "@/lib/jury/types";
 import { createInitialSteps, workflowStepKeys } from "@/lib/workflow/nodeDefinitions";
 import { cleanText } from "@/lib/workflow/runners/cleanText";
@@ -23,11 +23,11 @@ import {
 import type {
   DocumentMetadata,
   GeneratedQuestion,
-  LocalWorkflowRunSummary,
   InspectionAnchor,
   TextSegment,
   WorkflowData,
   WorkflowLog,
+  WorkflowRunSummary,
   NodeInspectionMode,
   WorkflowStepKey,
   WorkflowStepState,
@@ -65,10 +65,7 @@ export default function Home() {
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [aiStatus, setAiStatus] = useState<AiPublicStatus | null>(null);
   const [aiStatusError, setAiStatusError] = useState<string | null>(null);
-  const [runSummary, setRunSummary] = useState<LocalWorkflowRunSummary | undefined>();
-  const [runtimeRunMode, setRuntimeRunMode] = useState<RuntimeRunMode>("demo");
-  const runtimeRunModeRef = useRef<RuntimeRunMode>("demo");
-  const [lastFailedStep, setLastFailedStep] = useState<WorkflowStepKey | undefined>();
+  const [runSummary, setRunSummary] = useState<WorkflowRunSummary | undefined>();
   const [inspectorHidden, setInspectorHidden] = useState(false);
 
   const selectedStep = steps[selectedKey];
@@ -90,20 +87,9 @@ export default function Home() {
           : selectedKey === "rewrite"
             ? data.rewrittenQuestion
             : latestJury ?? selectedQuestion;
-  const appSourceLabel =
-    runtimeRunMode === "demo"
-      ? "Local mode"
-      : `Live ${aiProviderDisplayName(selectedAiResult?.provider ?? aiStatus?.liveProvider ?? aiStatus?.provider)}`;
   const selectedTask = aiTaskForStep(selectedKey);
   const selectedModel =
     selectedAiResult?.model ?? (selectedTask && aiStatus?.models[selectedTask]) ?? undefined;
-  const selectedProvider =
-    runtimeRunMode === "demo" ? "demo" : selectedAiResult?.provider ?? aiStatus?.liveProvider ?? aiStatus?.provider;
-
-  const updateRuntimeRunMode = (mode: RuntimeRunMode) => {
-    runtimeRunModeRef.current = mode;
-    setRuntimeRunMode(mode);
-  };
 
   useEffect(() => {
     let active = true;
@@ -116,7 +102,6 @@ export default function Home() {
           return;
         }
         setAiStatus(body.status);
-        updateRuntimeRunMode(body.status.defaultRuntimeMode);
         setAiStatusError(null);
       })
       .catch((error) => {
@@ -180,11 +165,9 @@ export default function Home() {
     if (!result.provider || !result.model || result.latencyMs === undefined) return undefined;
     return {
       task,
-      requestedRunMode: runtimeRunModeRef.current,
       provider: result.provider,
       model: result.model,
       latencyMs: result.latencyMs,
-      fallbackReason: runtimeRunModeRef.current === "demo" ? "requested local mode" : undefined,
       usage: result.usage,
     };
   };
@@ -199,7 +182,6 @@ export default function Home() {
     }>
   ) => {
     patchStep(key, { status: "running", startedAt: new Date().toISOString(), error: undefined });
-    setLastFailedStep(undefined);
     log(`Running ${steps[key].label}`, "info", key);
     try {
       const result = await runner();
@@ -218,7 +200,6 @@ export default function Home() {
     } catch (error) {
       const message = error instanceof Error ? error.message : `${steps[key].label} failed.`;
       patchStep(key, { status: "error", error: message, completedAt: new Date().toISOString() });
-      if (runtimeRunModeRef.current === "live") setLastFailedStep(key);
       log(message, "error", key);
       throw error;
     }
@@ -285,12 +266,11 @@ export default function Home() {
     const response = await fetch("/api/jury", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...questionInput(juryQuestion, jurySegment), mode, runtimeRunMode: runtimeRunModeRef.current }),
+      body: JSON.stringify({ ...questionInput(juryQuestion, jurySegment), mode }),
     });
     const body = (await response.json()) as {
       result?: JuryResult;
       error?: string;
-      fallbackAvailable?: boolean;
     };
     if (!response.ok || !body.result) throw new Error(body.error || `${mode} jury failed.`);
     return body.result;
@@ -389,7 +369,7 @@ export default function Home() {
           const response = await fetch("/api/questions/generate", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ segment, runtimeRunMode: runtimeRunModeRef.current }),
+            body: JSON.stringify({ segment }),
           });
           const body = (await response.json()) as { questions?: GeneratedQuestion[]; error?: string };
           if (!response.ok || !body.questions) throw new Error(body.error || "Question generation failed.");
@@ -448,7 +428,6 @@ export default function Home() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               ...questionInput(question, segment),
-              runtimeRunMode: runtimeRunModeRef.current,
               result: juryForRewrite
                 ? {
                   finalDecision: juryForRewrite.finalDecision,
@@ -574,14 +553,14 @@ export default function Home() {
     const startedAtMs = Date.now();
     const startedAt = new Date(startedAtMs).toISOString();
     const runId = crypto.randomUUID();
-    const initialSummary: LocalWorkflowRunSummary = {
+    const initialSummary: WorkflowRunSummary = {
       runId,
       startedAt,
       status: "running",
       numberOfSteps: keys.length,
       successfulSteps: 0,
       failedSteps: 0,
-      providerUsed: runtimeRunModeRef.current === "demo" ? "demo" : aiStatus?.liveProvider ?? aiStatus?.provider,
+      providerUsed: aiStatus?.provider,
       modelsUsed: [],
     };
     setRunSummary(initialSummary);
@@ -601,13 +580,13 @@ export default function Home() {
     const completedData = dataRef.current;
     const latestResult = completedData.strictJuryResult ?? completedData.fastJuryResult;
     const integrityStatus = completedData.integrityReport?.status;
-    const status: LocalWorkflowRunSummary["status"] =
+    const status: WorkflowRunSummary["status"] =
       failedSteps > 0 || integrityStatus === "fail"
         ? "failed"
         : integrityStatus === "warning"
           ? "warning"
           : "success";
-    const completedSummary: LocalWorkflowRunSummary = {
+    const completedSummary: WorkflowRunSummary = {
       runId,
       startedAt,
       completedAt: new Date(completedAtMs).toISOString(),
@@ -745,20 +724,7 @@ export default function Home() {
     setSelectedQuestionId(undefined);
     setGlobalError(null);
     setRunSummary(undefined);
-    setLastFailedStep(undefined);
   };
-
-  const retryInLocalMode = async () => {
-    if (!lastFailedStep) return;
-    updateRuntimeRunMode("demo");
-    setGlobalError(null);
-    await runSequence([lastFailedStep]);
-  };
-
-  const runModeLabel =
-    runtimeRunMode === "demo"
-      ? runtimeModeBadge(runtimeRunMode)
-      : `Live ${aiProviderDisplayName(aiStatus?.liveProvider ?? selectedProvider)}`;
 
   return (
     <AppShell>
@@ -775,15 +741,6 @@ export default function Home() {
               {globalError}
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              {runtimeRunMode === "live" && lastFailedStep && (
-                <button
-                  type="button"
-                  onClick={retryInLocalMode}
-                  className="inline-flex h-10 shrink-0 items-center justify-center rounded-2xl bg-red-600 px-4 text-sm font-black text-white transition hover:bg-red-700"
-                >
-                  Retry in Local mode
-                </button>
-              )}
               <button
                 type="button"
                 onClick={() => setGlobalError(null)}
@@ -823,7 +780,6 @@ export default function Home() {
               selectedSegmentIndex={selectedSegmentIndex}
               selectedQuestionId={selectedQuestion?.id}
               busy={busy}
-              sourceLabel={appSourceLabel}
               selectedModel={selectedModel}
               onUpload={uploadFile}
               onRunFull={runFullWorkflow}
@@ -862,14 +818,7 @@ export default function Home() {
 
       <WorkflowBottomBar
         busy={busy}
-        modeLabel={runModeLabel}
-        runtimeRunMode={runtimeRunMode}
         hasFinalOutput={Boolean(data.finalApprovedQuestion)}
-        onRunModeChange={(mode) => {
-          updateRuntimeRunMode(mode);
-          setGlobalError(null);
-          setLastFailedStep(undefined);
-        }}
         onRunOnce={() => runSequence([selectedKey])}
         onRunFull={runFullWorkflow}
         onRunFromSelected={runFromSelected}
