@@ -12,7 +12,7 @@ import {
 import { clsx } from "clsx";
 import { DataViewer } from "@/components/workflow/DataViewer";
 import { ScoreBar, StatusBadge } from "@/components/status";
-import type { SampleDocument } from "@/lib/workflow/samples";
+import { aiModelDisplayName, aiProviderDisplayName, offlineReasonDisplay, runtimeModeDisplayName } from "@/lib/ai/display";
 import type {
   GeneratedQuestion,
   InspectionAnchor,
@@ -76,12 +76,12 @@ function LogsTab({ logs }: { logs: WorkflowLog[] }) {
             </div>
             {log.ai && (
               <div className="mt-1 flex flex-wrap gap-2 pl-[92px] text-[11px] text-slate-500">
-                {log.ai.requestedRunMode && <span>requested {log.ai.requestedRunMode}</span>}
-                <span>actualProvider {log.ai.provider}</span>
-                <span>model {log.ai.model}</span>
+                {log.ai.requestedRunMode && <span>requested {runtimeModeDisplayName(log.ai.requestedRunMode)}</span>}
+                <span>actualProvider {aiProviderDisplayName(log.ai.provider)}</span>
+                <span>model {aiModelDisplayName(log.ai.model)}</span>
                 <span>latency {log.ai.latencyMs}ms</span>
                 {usage && <span>tokens {usage}</span>}
-                {log.ai.fallbackReason && <span>fallback {log.ai.fallbackReason}</span>}
+                {log.ai.fallbackReason && <span>offline {offlineReasonDisplay(log.ai.fallbackReason)}</span>}
               </div>
             )}
           </div>
@@ -92,8 +92,6 @@ function LogsTab({ logs }: { logs: WorkflowLog[] }) {
 }
 
 export function WorkflowSidebar({
-  samples,
-  selectedSampleId,
   selectedStep,
   inspectionMode,
   data,
@@ -103,7 +101,6 @@ export function WorkflowSidebar({
   busy,
   sourceLabel,
   selectedModel,
-  onSampleChange,
   onUpload,
   onRunFull,
   onRunStep,
@@ -121,8 +118,6 @@ export function WorkflowSidebar({
   onQuestionChange,
   onInspectionModeChange,
 }: {
-  samples: SampleDocument[];
-  selectedSampleId: string;
   selectedStep: WorkflowStepState;
   inspectionMode: NodeInspectionMode;
   data: WorkflowData;
@@ -132,7 +127,6 @@ export function WorkflowSidebar({
   busy: boolean;
   sourceLabel: string;
   selectedModel?: string;
-  onSampleChange: (id: string) => void;
   onUpload: (file: File) => void;
   onRunFull: () => void;
   onRunStep: (key: WorkflowStepKey) => void;
@@ -167,7 +161,7 @@ export function WorkflowSidebar({
     status: selectedStep.status,
     summary: selectedStep.summary,
     provider: sourceLabel,
-    model: selectedModel,
+    model: aiModelDisplayName(selectedModel),
     runSummary,
     startedAt: selectedStep.startedAt,
     completedAt: selectedStep.completedAt,
@@ -182,7 +176,7 @@ export function WorkflowSidebar({
         : overviewValue;
 
   return (
-    <aside className="flex h-full min-h-[calc(100vh-118px)] flex-col overflow-hidden rounded-[28px] border border-white bg-white shadow-[0_24px_70px_rgba(15,23,42,0.10)]">
+    <aside className="flex h-full min-h-0 flex-col overflow-hidden rounded-[28px] border border-white bg-white shadow-[0_24px_70px_rgba(15,23,42,0.18)]">
       <div className="border-b border-slate-100 p-4">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -294,19 +288,26 @@ export function WorkflowSidebar({
             <FileText className="h-4 w-4 text-violet-600" />
             Document source
           </div>
-          <label className="mb-1 block text-xs font-bold uppercase text-slate-500">Sample document</label>
-          <select
-            value={selectedSampleId}
-            onChange={(event) => onSampleChange(event.target.value)}
-            className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
-          >
-            {samples.map((sample) => (
-              <option key={sample.id} value={sample.id}>
-                {sample.title}
-              </option>
-            ))}
-          </select>
-          <label className="mt-3 flex h-12 cursor-pointer items-center justify-center gap-2 rounded-2xl border border-dashed border-violet-200 bg-white text-sm font-black text-violet-700 transition hover:border-violet-400 hover:bg-violet-50">
+          <p className="mb-3 text-xs font-semibold leading-5 text-slate-500">
+            {data.document?.metadata
+              ? "Uploaded document ready for extraction and LLM steps."
+              : "Upload a PDF or EPUB to start the workflow."}
+          </p>
+          {data.document?.metadata && (
+            <div className="mb-3 rounded-2xl border border-slate-200 bg-white p-3 text-xs font-semibold text-slate-600">
+              <div className="font-black text-slate-900">{data.document.metadata.name}</div>
+              <div className="mt-1 flex flex-wrap gap-2">
+                <span>{data.document.metadata.kind.toUpperCase()}</span>
+                {data.document.metadata.wordCount !== undefined && (
+                  <span>{data.document.metadata.wordCount.toLocaleString()} words</span>
+                )}
+                {data.document.metadata.size !== undefined && (
+                  <span>{Math.round(data.document.metadata.size / 1024).toLocaleString()} KB</span>
+                )}
+              </div>
+            </div>
+          )}
+          <label className="flex h-12 cursor-pointer items-center justify-center gap-2 rounded-2xl border border-dashed border-violet-200 bg-white text-sm font-black text-violet-700 transition hover:border-violet-400 hover:bg-violet-50">
             <FileText className="h-4 w-4" />
             Upload PDF / EPUB
             <input

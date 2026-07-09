@@ -1,11 +1,6 @@
 import { ArrowLeft, CircleHelp, Download, Loader2, SlidersHorizontal } from "lucide-react";
+import { aiProviderDisplayName } from "@/lib/ai/display";
 import type { AiProviderName } from "@/lib/ai/types";
-
-function providerLabel(provider?: AiProviderName) {
-  if (provider === "openai") return "OpenAI";
-  if (provider === "demo") return "Demo";
-  return "OpenRouter";
-}
 
 export function WorkflowTopBar({
   provider,
@@ -53,7 +48,7 @@ export function WorkflowTopBar({
 
       <div className="flex shrink-0 items-center gap-2">
         <div className="hidden rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 md:block">
-          Provider: {providerLabel(provider)}
+          Provider: {aiProviderDisplayName(provider)}
         </div>
         <div className="hidden max-w-[260px] rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-500 xl:block">
           <span className="text-slate-700">Model</span> {model ?? "not selected"}

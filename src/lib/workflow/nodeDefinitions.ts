@@ -4,7 +4,7 @@ export const workflowNodeDefinitions: Array<Pick<WorkflowStepState, "key" | "lab
   {
     key: "documentInput",
     label: "Document Input",
-    summary: "Upload PDF/EPUB or choose a built-in sample.",
+    summary: "Upload a real PDF or EPUB document.",
   },
   {
     key: "textExtraction",

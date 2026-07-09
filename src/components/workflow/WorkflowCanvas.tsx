@@ -97,7 +97,7 @@ export function WorkflowCanvas({
   });
 
   return (
-    <div className="h-full min-h-[calc(100vh-118px)] overflow-hidden rounded-[28px] border border-white bg-[#f7f9fe] shadow-[inset_0_0_0_1px_rgba(148,163,184,0.16),0_24px_70px_rgba(79,70,229,0.08)]">
+    <div className="h-full min-h-0 overflow-hidden rounded-[28px] border border-white bg-[#f7f9fe] shadow-[inset_0_0_0_1px_rgba(148,163,184,0.16),0_24px_70px_rgba(79,70,229,0.08)]">
       <ReactFlow
         nodes={nodes}
         edges={edges}

@@ -59,7 +59,7 @@ function attachJuryMetadata(
 ): JuryResult {
   return {
     ...result,
-    source: meta.provider === "demo" ? "fallback" : "live",
+    source: meta.provider === "demo" ? "local" : "live",
     provider: meta.provider,
     model: meta.model,
     latencyMs: meta.latencyMs,
@@ -205,7 +205,7 @@ export async function rewriteQuestion(
   const validated = RewriteResultSchema.parse(parsedJson);
   return {
     ...validated,
-    source: response.provider === "demo" ? "fallback" : "live",
+    source: response.provider === "demo" ? "local" : "live",
     provider: response.provider,
     model: response.model,
     latencyMs: response.latencyMs,

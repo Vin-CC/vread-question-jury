@@ -23,6 +23,13 @@ const defaultModels: Record<AiProviderName, Record<"question" | "fast" | "strict
     chief: "gpt-4o-mini",
     rewrite: "gpt-4o-mini",
   },
+  anthropic: {
+    question: "claude-opus-4-8",
+    fast: "claude-haiku-4-5",
+    strict: "claude-opus-4-8",
+    chief: "claude-opus-4-8",
+    rewrite: "claude-opus-4-8",
+  },
   demo: {
     question: "demo/question-generator",
     fast: "demo/fast-jury",

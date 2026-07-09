@@ -95,7 +95,7 @@ function demoQuestions(excerpt: string) {
       {
         question: "What concrete object is most important in the selected scene?",
         answer: excerpt.split(/\s+/).filter(Boolean).slice(0, 2).join(" ") || "the excerpt",
-        rationale: "Fallback generic candidate when no built-in scene pattern matches.",
+        rationale: "Fallback generic candidate when no document-specific pattern matches.",
       },
     ],
   };

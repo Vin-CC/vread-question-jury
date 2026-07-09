@@ -40,7 +40,7 @@ export type JudgeResult = {
 
 export type JuryResult = {
   mode: JuryMode;
-  source?: "live" | "fallback";
+  source?: "live" | "local";
   globalScore: number;
   finalDecision: JudgeDecision;
   summary: string;
@@ -60,7 +60,7 @@ export type RewriteResult = {
   question: string;
   answer: string;
   reason: string;
-  source?: "live" | "fallback";
+  source?: "live" | "local";
   provider?: AiProviderName;
   model?: string;
   latencyMs?: number;
@@ -91,7 +91,7 @@ export const TokenUsageSchema = z.object({
   totalTokens: z.number().int().nonnegative().optional(),
 });
 
-export const AiProviderNameSchema = z.enum(["openrouter", "openai", "demo"]);
+export const AiProviderNameSchema = z.enum(["openrouter", "openai", "anthropic", "demo"]);
 
 export const JudgeResultSchema = z.object({
   judge: JudgeNameSchema,
@@ -108,7 +108,7 @@ export const JudgeResultSchema = z.object({
 
 export const JuryResultSchema = z.object({
   mode: z.enum(["fast", "strict"]),
-  source: z.enum(["live", "fallback"]).optional(),
+  source: z.enum(["live", "local"]).optional(),
   globalScore: z.number().int().min(0).max(100),
   finalDecision: JudgeDecisionSchema,
   summary: z.string().min(8).max(1400),
@@ -130,7 +130,7 @@ export const RewriteResultSchema = z.object({
   question: z.string().min(8).max(800),
   answer: z.string().min(1).max(500),
   reason: z.string().min(8).max(800),
-  source: z.enum(["live", "fallback"]).optional(),
+  source: z.enum(["live", "local"]).optional(),
   provider: AiProviderNameSchema.optional(),
   model: z.string().optional(),
   latencyMs: z.number().int().nonnegative().optional(),

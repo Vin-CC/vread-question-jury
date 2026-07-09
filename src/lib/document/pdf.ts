@@ -8,7 +8,7 @@ export async function extractPdfText(buffer: ArrayBuffer) {
 
   if (text.length < 80) {
     throw new Error(
-      "PDF extraction produced too little text. This demo supports text-based PDFs, not scanned image-only PDFs."
+      "PDF extraction produced too little text. This application supports text-based PDFs, not scanned image-only PDFs."
     );
   }
 

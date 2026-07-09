@@ -9,7 +9,7 @@ import type {
   RuntimeRunMode,
 } from "./types";
 
-const providerNames: AiProviderName[] = ["openrouter", "openai", "demo"];
+const providerNames: AiProviderName[] = ["openrouter", "openai", "anthropic", "demo"];
 const providerSorts: AiProviderSort[] = ["price", "throughput", "latency"];
 const reasoningEfforts: AiReasoningEffort[] = ["none", "low", "medium", "high"];
 
@@ -33,11 +33,17 @@ function parseProvider(rawProvider?: string): { provider: AiProviderName; config
   if (configuredProvider === "codex") {
     return { provider: "openai", configuredProvider };
   }
+  if (configuredProvider === "claude") {
+    return { provider: "anthropic", configuredProvider };
+  }
+  if (configuredProvider === "local") {
+    return { provider: "demo", configuredProvider };
+  }
   if (providerNames.includes(configuredProvider as AiProviderName)) {
     return { provider: configuredProvider as AiProviderName, configuredProvider };
   }
   throw new AiProviderError({
-    message: `AI_PROVIDER must be one of openrouter, openai, or demo. Received "${configuredProvider}".`,
+    message: `AI_PROVIDER must be one of openrouter, openai (or codex), anthropic (or claude), or local. Received "${configuredProvider}".`,
   });
 }
 
@@ -65,12 +71,17 @@ function requiredApiKey(provider: AiProviderName, configuredProvider: string) {
     if (!apiKey) throw new AiProviderError({ message: "OPENROUTER_API_KEY is not configured." });
     return apiKey;
   }
+  if (provider === "anthropic") {
+    const apiKey = cleanEnv("ANTHROPIC_API_KEY");
+    if (!apiKey) throw new AiProviderError({ message: "ANTHROPIC_API_KEY is not configured." });
+    return apiKey;
+  }
 
   const apiKey = cleanEnv("OPENAI_API_KEY");
   if (!apiKey && configuredProvider === "codex") {
     throw new AiProviderError({
       message:
-        "AI_PROVIDER=codex maps to the OpenAI runtime provider. Codex is a development agent, while this app needs an LLM runtime provider. Configure OPENAI_API_KEY and AI_* model variables, or set AI_PROVIDER=openrouter/demo.",
+        "AI_PROVIDER=codex maps to the OpenAI runtime provider. Codex is a development agent, while this app needs an LLM runtime provider. Configure OPENAI_API_KEY and AI_* model variables, or set AI_PROVIDER=openrouter/local.",
     });
   }
   if (!apiKey) throw new AiProviderError({ message: "OPENAI_API_KEY is not configured." });
@@ -88,7 +99,7 @@ function apiKeyErrorMessage(provider: AiProviderName, configuredProvider: string
 
 function liveModeError(message: string) {
   return new AiProviderError({
-    message: `Live mode is not configured. ${message} Add an API key or switch to Demo mode.`,
+    message: `Live mode is not configured. ${message} Add an API key or switch to Local mode.`,
   });
 }
 
@@ -104,7 +115,7 @@ export function getAiConfig(options: { forceDemoFallback?: boolean; runtimeMode?
     provider = "demo";
   } else {
     if (parsed.provider === "demo") {
-      throw liveModeError("AI_PROVIDER is set to demo.");
+      throw liveModeError("AI_PROVIDER is set to local mode.");
     }
     provider = parsed.provider;
   }
@@ -139,7 +150,7 @@ export function getAiPublicStatus(): AiPublicStatus {
   const liveProvider = parsed.provider === "demo" ? undefined : parsed.provider;
   const liveConfigurationError = liveProvider
     ? apiKeyErrorMessage(liveProvider, parsed.configuredProvider)
-    : "AI_PROVIDER is set to demo.";
+    : "AI_PROVIDER is set to local mode.";
   const liveAvailable = Boolean(liveProvider && !liveConfigurationError);
   const defaultRuntimeMode: RuntimeRunMode =
     demoFallbackMode || parsed.provider === "demo" || !liveAvailable ? "demo" : "live";

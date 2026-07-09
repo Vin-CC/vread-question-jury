@@ -37,14 +37,14 @@ export type WorkflowStepState = {
   output?: unknown;
 };
 
-export type DocumentKind = "sample" | "pdf" | "epub" | "text";
+export type DocumentKind = "pdf" | "epub" | "text";
 
 export type DocumentMetadata = {
   name: string;
   kind: DocumentKind;
   size?: number;
   wordCount?: number;
-  source?: "upload" | "sample";
+  source?: "upload";
 };
 
 export type TextSegment = {
@@ -64,7 +64,7 @@ export type GeneratedQuestion = {
   question: string;
   answer: string;
   rationale: string;
-  source?: "live" | "fallback";
+  source?: "live" | "local";
   provider?: AiProviderName;
   model?: string;
   latencyMs?: number;
@@ -96,9 +96,9 @@ export type VreadExport = {
     slug: string;
     language: string;
     expected_segments: number;
-    source_type: "pdf" | "epub" | "sample";
+    source_type: "pdf" | "epub" | "text";
     word_count: number;
-    created_from: "vread-question-jury-demo";
+    created_from: "vread-question-jury";
   };
   reading_questions: Array<{
     segment_index: number;
@@ -188,8 +188,8 @@ export const GeneratedQuestionSchema = z.object({
   question: z.string().min(8).max(800),
   answer: z.string().min(1).max(500),
   rationale: z.string().min(8).max(1000),
-  source: z.enum(["live", "fallback"]).optional(),
-  provider: z.enum(["openrouter", "openai", "demo"]).optional(),
+  source: z.enum(["live", "local"]).optional(),
+  provider: z.enum(["openrouter", "openai", "anthropic", "demo"]).optional(),
   model: z.string().optional(),
   latencyMs: z.number().int().nonnegative().optional(),
   usage: z

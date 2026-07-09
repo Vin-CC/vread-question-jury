@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ChevronDown, ListChecks } from "lucide-react";
 import type { WorkflowLog } from "@/lib/workflow/types";
 import { clsx } from "clsx";
+import { aiModelDisplayName, aiProviderDisplayName, offlineReasonDisplay, runtimeModeDisplayName } from "@/lib/ai/display";
 
 type LogUsage = NonNullable<WorkflowLog["ai"]>["usage"];
 
@@ -39,7 +40,7 @@ export function WorkflowLogs({ logs }: { logs: WorkflowLog[] }) {
       </button>
       {!open ? (
         <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-500">
-          Logs are collapsed for demo view. Expand when you need provider, model, latency, or token details.
+          Logs are collapsed. Expand when you need provider, model, latency, or token details.
         </div>
       ) : (
         <div className="mt-4 max-h-[300px] space-y-2 overflow-auto pr-1 font-mono text-xs">
@@ -67,12 +68,12 @@ export function WorkflowLogs({ logs }: { logs: WorkflowLog[] }) {
                   {log.ai && (
                     <div className="mt-1 flex flex-wrap gap-2 pl-[92px] text-[11px] text-slate-500">
                       <span>task {log.ai.task}</span>
-                      {log.ai.requestedRunMode && <span>requested {log.ai.requestedRunMode}</span>}
-                      <span>actualProvider {log.ai.provider}</span>
-                      <span>model {log.ai.model}</span>
+                      {log.ai.requestedRunMode && <span>requested {runtimeModeDisplayName(log.ai.requestedRunMode)}</span>}
+                      <span>actualProvider {aiProviderDisplayName(log.ai.provider)}</span>
+                      <span>model {aiModelDisplayName(log.ai.model)}</span>
                       <span>latency {log.ai.latencyMs}ms</span>
                       {usage && <span>tokens {usage}</span>}
-                      {log.ai.fallbackReason && <span>fallback {log.ai.fallbackReason}</span>}
+                      {log.ai.fallbackReason && <span>offline {offlineReasonDisplay(log.ai.fallbackReason)}</span>}
                     </div>
                   )}
                 </div>

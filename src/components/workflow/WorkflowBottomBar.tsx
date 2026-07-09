@@ -1,5 +1,6 @@
 import { Clipboard, Download, Play, RotateCcw, Sparkles, StepForward } from "lucide-react";
 import { clsx } from "clsx";
+import { runtimeModeDisplayName } from "@/lib/ai/display";
 import type { RuntimeRunMode } from "@/lib/ai/types";
 
 export function WorkflowBottomBar({
@@ -28,7 +29,7 @@ export function WorkflowBottomBar({
   onCopy: () => void;
 }) {
   return (
-    <div className="fixed bottom-5 left-1/2 z-30 flex w-fit -translate-x-1/2 flex-nowrap items-center justify-center gap-1.5 rounded-[28px] border border-white/80 bg-white/95 p-1.5 shadow-[0_24px_70px_rgba(79,70,229,0.18)] backdrop-blur">
+    <div className="fixed bottom-5 left-1/2 z-30 flex w-max -translate-x-1/2 flex-nowrap items-center justify-center gap-1.5 whitespace-nowrap rounded-[28px] border border-white/80 bg-white/95 p-1.5 shadow-[0_24px_70px_rgba(79,70,229,0.18)] backdrop-blur">
       <button
         type="button"
         disabled={busy}
@@ -72,7 +73,7 @@ export function WorkflowBottomBar({
                 : "text-slate-500 hover:bg-white hover:text-violet-700"
             )}
           >
-            {mode === "demo" ? "Demo" : "Live"}
+            {runtimeModeDisplayName(mode)}
           </button>
         ))}
         <span

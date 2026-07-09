@@ -1,3 +1,4 @@
+import { aiModelDisplayName } from "@/lib/ai/display";
 import type {
   GeneratedQuestion,
   IntegrityCheck,
@@ -221,8 +222,8 @@ export function buildVreadExport(
   const metadata = data.document?.metadata;
   const title = metadata?.name ?? "Untitled Book";
   const integrityStatus = data.integrityReport?.status ?? "warning";
-  const sourceType: "pdf" | "epub" | "sample" =
-    metadata?.kind === "pdf" || metadata?.kind === "epub" ? metadata.kind : "sample";
+  const sourceType: "pdf" | "epub" | "text" =
+    metadata?.kind === "pdf" || metadata?.kind === "epub" ? metadata.kind : "text";
   const wordCount =
     metadata?.wordCount ??
     data.cleanedText?.split(/\s+/).filter(Boolean).length ??
@@ -236,7 +237,7 @@ export function buildVreadExport(
       expected_segments: data.segments?.length ?? 1,
       source_type: sourceType,
       word_count: wordCount,
-      created_from: "vread-question-jury-demo" as const,
+      created_from: "vread-question-jury" as const,
     },
     reading_questions: [
       {
@@ -253,7 +254,7 @@ export function buildVreadExport(
   };
 
   const sqlPreview = [
-    "-- PREVIEW ONLY: this demo does not execute SQL or insert into Supabase.",
+    "-- PREVIEW ONLY: this application does not execute SQL or insert into Supabase.",
     "insert into books (title, slug, language, expected_segments, source_type, word_count, created_from)",
     `values (${sqlString(json.book.title)}, ${sqlString(json.book.slug)}, ${sqlString(json.book.language)}, ${json.book.expected_segments}, ${sqlString(json.book.source_type)}, ${json.book.word_count}, ${sqlString(json.book.created_from)});`,
     "",
@@ -268,17 +269,19 @@ export function collectModelsUsed(data: WorkflowData) {
   const models = new Set<string>();
 
   for (const question of data.generatedQuestions ?? []) {
-    if (question.model) models.add(question.model);
+    if (question.model) models.add(aiModelDisplayName(question.model) ?? question.model);
   }
 
   for (const jury of [data.fastJuryResult, data.strictJuryResult]) {
-    if (jury?.model) models.add(jury.model);
+    if (jury?.model) models.add(aiModelDisplayName(jury.model) ?? jury.model);
     for (const judge of jury?.judges ?? []) {
-      if (judge.model) models.add(judge.model);
+      if (judge.model) models.add(aiModelDisplayName(judge.model) ?? judge.model);
     }
   }
 
-  if (data.rewrittenQuestion?.model) models.add(data.rewrittenQuestion.model);
+  if (data.rewrittenQuestion?.model) {
+    models.add(aiModelDisplayName(data.rewrittenQuestion.model) ?? data.rewrittenQuestion.model);
+  }
 
   return Array.from(models);
 }

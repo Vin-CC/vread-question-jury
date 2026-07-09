@@ -31,9 +31,9 @@ export async function generateQuestionsForSegment(
   const parsed = QuestionGenerationResponseSchema.parse(parseJsonObject(response.content));
   return parsed.questions.map((question, index) => ({
     ...question,
-    id: `${response.provider === "demo" ? "fallback" : "live"}-q-${segment.index}-${index}`,
+    id: `${response.provider === "demo" ? "local" : "live"}-q-${segment.index}-${index}`,
     segmentIndex: segment.index,
-    source: response.provider === "demo" ? "fallback" : "live",
+    source: response.provider === "demo" ? "local" : "live",
     provider: response.provider,
     model: response.model,
     latencyMs: response.latencyMs,

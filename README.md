@@ -1,14 +1,14 @@
 # VREAD Document Jury Workflow
 
-Standalone hackathon demo for showing how VREAD can transform a book document into verified reading-comprehension questions through a visual AI workflow.
+Standalone VREAD workflow application for transforming a book document into verified reading-comprehension questions through a visual AI workflow.
 
-The app ingests a PDF, EPUB, or built-in sample document, extracts text, cleans it, segments it, generates candidate questions, evaluates them with LLM-as-a-Jury, optionally rewrites weak questions, runs lightweight integrity checks, and exports VREAD-compatible JSON.
+The app ingests a real PDF or EPUB document, extracts text, cleans it, segments it, generates candidate questions, evaluates them with LLM-as-a-Jury, optionally rewrites weak questions, runs lightweight integrity checks, and exports VREAD-compatible JSON.
 
 ## Project Purpose
 
 VREAD validates reading by asking comprehension questions grounded in source excerpts. The hard part is not only generating questions; it is proving that each question is explicitly supported, unambiguous, hard to guess, clear, and pedagogically useful.
 
-This demo makes that pipeline visible as a node-based workflow:
+This application makes that pipeline visible as a node-based workflow:
 
 1. Document Input
 2. Text Extraction
@@ -38,17 +38,16 @@ Click a node to inspect its input/output in the right panel. The bottom panels s
 
 - PDF: text-based PDFs only.
 - EPUB: extracts readable XHTML/HTML content from the EPUB archive.
-- Built-in samples: included for reliable demos.
 
 Known extraction limitations:
 
 - Scanned image-only PDFs are not OCRed.
-- Complex EPUB ordering may be imperfect because this demo uses a lightweight archive/content extraction path.
+- Complex EPUB ordering may be imperfect because this application uses a lightweight archive/content extraction path.
 - The extraction step is hackathon-friendly, not production-grade.
 
 ## Historical VREAD Alignment
 
-This standalone demo borrows concepts from the historical VREAD workflow project without modifying it:
+This standalone application borrows concepts from the historical VREAD workflow project without modifying it:
 
 - Job-like step sequencing.
 - `process -> questions -> review/output` thinking.
@@ -58,7 +57,7 @@ This standalone demo borrows concepts from the historical VREAD workflow project
 - VREAD-shaped export objects for `book` and `reading_questions`.
 - A local run summary that resembles production job metadata without a database.
 
-This is not the full production workflow. The demo intentionally does not implement:
+This is not the full production workflow. The application intentionally does not implement:
 
 - Anna's Archive, RapidAPI, or other search/download integrations.
 - Supabase persistence or production job tables.
@@ -93,11 +92,11 @@ The VREAD Export node transforms the approved question into a lightweight VREAD-
 
 The export contains:
 
-- `book`: title, slug, language, expected segment count, source type, word count, and demo origin.
+- `book`: title, slug, language, expected segment count, source type, word count, and workflow origin.
 - `reading_questions`: segment index, question, answer, source excerpt, jury decision, jury score, and integrity status.
 - `run_summary`: local run metadata for the current workflow execution.
 
-The UI supports copying VREAD JSON, exporting VREAD JSON, and copying a clearly labeled SQL preview string. The SQL string is preview-only and exists for demo storytelling, not production execution.
+The UI supports copying VREAD JSON, exporting VREAD JSON, and copying a clearly labeled SQL preview string. The SQL string is preview-only and is not executed by the application.
 
 ## Local Run Summary
 
@@ -108,7 +107,7 @@ Each workflow execution records local state only:
 - provider and models used when available.
 - final jury decision, global score, and integrity status.
 
-This is intentionally not persisted to a database. It is included in the VREAD JSON export for audit-style demo context.
+This is intentionally not persisted to a database. It is included in the VREAD JSON export for audit-style workflow context.
 
 ## LLM-as-a-Jury
 
@@ -130,7 +129,8 @@ All runtime LLM calls go through `src/lib/ai`. Workflow and jury code call the g
 Environment variables:
 
 ```bash
-AI_PROVIDER=openrouter # openrouter | openai | demo
+AI_PROVIDER=openrouter # openrouter | openai | local
+# Legacy/internal env name for Local mode.
 DEMO_FALLBACK_MODE=true
 
 OPENROUTER_API_KEY=
@@ -169,28 +169,28 @@ The generic `AI_*` model variables take precedence when both are set.
 
 All model responses are parsed as JSON and validated with Zod before use.
 
-### Runtime Demo / Live Toggle
+### Runtime Local / Live Toggle
 
 The bottom execution bar has a runtime mode control:
 
-- `Demo`: forces the server to use the deterministic `DemoProvider` for that request.
+- `Local`: forces the server to use the deterministic local provider for that request. It does not call external APIs.
 - `Live`: asks the server to use the configured live provider from `AI_PROVIDER`, currently `openrouter` or `openai`.
 
-The browser only sends `runtimeRunMode=demo` or `runtimeRunMode=live` in API request bodies. `OPENROUTER_API_KEY` and `OPENAI_API_KEY` are read only on the server and are never exposed to client-side code.
+The browser only sends a requested Local or Live runtime mode in API request bodies. `OPENROUTER_API_KEY` and `OPENAI_API_KEY` are read only on the server and are never exposed to client-side code.
 
 Default UI mode is derived from environment:
 
-- `DEMO_FALLBACK_MODE=true` defaults the UI to Demo.
+- `DEMO_FALLBACK_MODE=true` defaults the UI to Local. This is a legacy/internal env name kept for compatibility.
 - `DEMO_FALLBACK_MODE=false` defaults the UI to Live only when the configured live provider has its API key.
-- `AI_PROVIDER=demo` defaults to Demo. Selecting Live will return a clear configuration error unless a live provider is configured.
+- `AI_PROVIDER=local` defaults to Local. Selecting Live will return a clear configuration error unless a live provider is configured.
 
 If Live mode is selected but the required key is missing, the API returns:
 
 ```text
-Live mode is not configured. Add an API key or switch to Demo mode.
+Live mode is not configured. Add an API key or switch to Local mode.
 ```
 
-The UI keeps the failure visible and offers **Retry in Demo mode** instead of silently hiding the live-provider error.
+The UI keeps the failure visible and offers **Retry in Local mode** instead of silently hiding the live-provider error.
 
 ### OpenRouter Setup
 
@@ -222,18 +222,18 @@ AI_QUESTION_MODEL=gpt-4o-mini
 
 `AI_PROVIDER=codex` is treated as an OpenAI runtime provider alias. Codex itself is a development agent, so this app still needs `OPENAI_API_KEY` and runtime model names.
 
-### Demo Fallback Setup
+### Local Mode Setup
 
 For presentations, set:
 
 ```bash
-AI_PROVIDER=demo
+AI_PROVIDER=local
 DEMO_FALLBACK_MODE=true
 ```
 
-Demo mode prevents the app from depending on network access, rate limits, or an API key. It provides deterministic question generation outputs, jury results, and rewrite results. The UI labels these runs as **Demo mode**.
+Local mode prevents the app from depending on network access, rate limits, or an API key. It provides deterministic question generation outputs, jury results, and rewrite results. The UI labels these runs as **Local mode**.
 
-If a Live provider call fails, the workflow shows the live error and offers **Retry in Demo mode** for the failed step.
+If a Live provider call fails, the workflow shows the live error and offers **Retry in Local mode** for the failed step.
 
 ## Run Locally
 
@@ -262,10 +262,10 @@ OPENAI_API_KEY=your_openai_key
 DEMO_FALLBACK_MODE=false
 ```
 
-Presentation fallback mode:
+Local mode:
 
 ```bash
-AI_PROVIDER=demo
+AI_PROVIDER=local
 DEMO_FALLBACK_MODE=true
 ```
 
@@ -277,11 +277,11 @@ npm run lint
 npm run build
 ```
 
-## Suggested Demo Flow
+## Suggested Presentation Flow
 
-1. Start in fallback mode for a guaranteed presentation.
+1. Start in local mode for a guaranteed presentation.
 2. Show the dark workflow graph and explain the document-to-question pipeline.
-3. Select the built-in Bakery Orders sample or upload a text-based PDF/EPUB.
+3. Upload a real text-based PDF/EPUB.
 4. Click **Run full** and watch nodes progress.
 5. Click Segmentation to inspect segment outputs.
 6. Click Question Generation to inspect candidate questions.

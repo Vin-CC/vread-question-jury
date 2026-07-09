@@ -1,4 +1,4 @@
-# VREAD Document Jury Workflow - 2-3 Minute Demo
+# VREAD Document Jury Workflow - 2-3 Minute Walkthrough
 
 ## 0:00 - Problem
 
@@ -12,9 +12,9 @@ Show the dark workflow canvas, node states, right-side controls, and logs panel.
 
 ## 0:35 - Document Input
 
-Select the built-in **Bakery Orders** sample, or upload a text-based PDF/EPUB.
+Upload a real text-based PDF/EPUB.
 
-"For a live presentation, I can run this in demo fallback mode, so the workflow remains reliable even without OpenRouter."
+"For a live presentation, I can run this in local mode, so the workflow remains reliable even without OpenRouter."
 
 ## 0:50 - Run Workflow
 
@@ -77,10 +77,10 @@ OPENROUTER_API_KEY=your_openrouter_key
 DEMO_FALLBACK_MODE=false
 ```
 
-Fallback presentation mode:
+Local presentation mode:
 
 ```bash
 DEMO_FALLBACK_MODE=true
 ```
 
-Fallback mode exists so a short demo is not derailed by missing credentials, rate limits, slow model responses, or network issues.
+Local mode exists so a short presentation is not derailed by missing credentials, rate limits, slow model responses, or network issues.

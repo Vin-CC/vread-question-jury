@@ -1,4 +1,5 @@
 import { AlertTriangle, Braces, FileText, List } from "lucide-react";
+import { toUserFacingAiValue } from "@/lib/ai/display";
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -70,7 +71,7 @@ export function DataViewer({
           <span>{value.length.toLocaleString()} item{value.length === 1 ? "" : "s"}</span>
         </div>
         <pre className="max-h-[360px] overflow-auto rounded-xl bg-white p-3 text-xs leading-relaxed text-slate-700">
-          {JSON.stringify(value, null, 2)}
+          {JSON.stringify(toUserFacingAiValue(value), null, 2)}
         </pre>
       </div>
     );
@@ -87,7 +88,7 @@ export function DataViewer({
           <span>{Object.keys(value).length.toLocaleString()} keys</span>
         </div>
         <pre className="max-h-[360px] overflow-auto rounded-xl bg-white p-3 text-xs leading-relaxed text-slate-700">
-          {JSON.stringify(value, null, 2)}
+          {JSON.stringify(toUserFacingAiValue(value), null, 2)}
         </pre>
       </div>
     );
@@ -95,7 +96,7 @@ export function DataViewer({
 
   return (
     <pre className="max-h-[360px] overflow-auto rounded-2xl border border-slate-200 bg-white p-3 text-xs leading-relaxed text-slate-700">
-      {JSON.stringify(value, null, 2)}
+      {JSON.stringify(toUserFacingAiValue(value), null, 2)}
     </pre>
   );
 }

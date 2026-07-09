@@ -1,17 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, PanelRightClose, PanelRightOpen } from "lucide-react";
-import { clsx } from "clsx";
+import { AlertTriangle, PanelRightClose, PanelRightOpen, X } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { WorkflowCanvas } from "@/components/workflow/WorkflowCanvas";
 import { InspectionPopover } from "@/components/workflow/InspectionPopover";
 import { WorkflowSidebar } from "@/components/workflow/WorkflowSidebar";
 import { WorkflowBottomBar } from "@/components/workflow/WorkflowBottomBar";
+import { aiProviderDisplayName, runtimeModeBadge, toUserFacingAiValue } from "@/lib/ai/display";
 import type { AiProviderName, AiPublicStatus, AiTask, RuntimeRunMode } from "@/lib/ai/types";
 import type { JuryInput, JuryMode, JuryResult, RewriteResult } from "@/lib/jury/types";
 import { createInitialSteps, workflowStepKeys } from "@/lib/workflow/nodeDefinitions";
-import { sampleDocuments, sampleToWorkflowData } from "@/lib/workflow/samples";
 import { cleanText } from "@/lib/workflow/runners/cleanText";
 import { segmentText } from "@/lib/workflow/runners/segmentText";
 import {
@@ -34,20 +33,12 @@ import type {
   WorkflowStepState,
 } from "@/lib/workflow/types";
 
-const firstSample = sampleDocuments[0];
-
 function nowTime() {
   return new Date().toLocaleTimeString();
 }
 
 function shortText(text: string, max = 420) {
   return text.length > max ? `${text.slice(0, max)}...` : text;
-}
-
-function providerLabel(provider?: AiProviderName) {
-  if (provider === "openai") return "OpenAI";
-  if (provider === "demo") return "Demo";
-  return "OpenRouter";
 }
 
 function aiTaskForStep(step: WorkflowStepKey): AiTask | undefined {
@@ -60,15 +51,14 @@ function aiTaskForStep(step: WorkflowStepKey): AiTask | undefined {
 
 export default function Home() {
   const [steps, setSteps] = useState(createInitialSteps);
-  const [data, setData] = useState<WorkflowData>(() => sampleToWorkflowData(firstSample));
-  const dataRef = useRef<WorkflowData>(sampleToWorkflowData(firstSample));
+  const [data, setData] = useState<WorkflowData>({});
+  const dataRef = useRef<WorkflowData>({});
   const [logs, setLogs] = useState<WorkflowLog[]>([]);
   const [selectedKey, setSelectedKey] = useState<WorkflowStepKey>("documentInput");
   const [selectedInspectionMode, setSelectedInspectionMode] =
     useState<NodeInspectionMode>("overview");
   const [inspectionPopoverOpen, setInspectionPopoverOpen] = useState(false);
   const [inspectionAnchor, setInspectionAnchor] = useState<InspectionAnchor | undefined>();
-  const [selectedSampleId, setSelectedSampleId] = useState(firstSample.id);
   const [selectedSegmentIndex, setSelectedSegmentIndex] = useState(0);
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
@@ -102,8 +92,8 @@ export default function Home() {
             : latestJury ?? selectedQuestion;
   const appSourceLabel =
     runtimeRunMode === "demo"
-      ? "Demo mode"
-      : `Live ${providerLabel(selectedAiResult?.provider ?? aiStatus?.liveProvider ?? aiStatus?.provider)}`;
+      ? "Local mode"
+      : `Live ${aiProviderDisplayName(selectedAiResult?.provider ?? aiStatus?.liveProvider ?? aiStatus?.provider)}`;
   const selectedTask = aiTaskForStep(selectedKey);
   const selectedModel =
     selectedAiResult?.model ?? (selectedTask && aiStatus?.models[selectedTask]) ?? undefined;
@@ -194,7 +184,7 @@ export default function Home() {
       provider: result.provider,
       model: result.model,
       latencyMs: result.latencyMs,
-      fallbackReason: runtimeRunModeRef.current === "demo" ? "requested demo mode" : undefined,
+      fallbackReason: runtimeRunModeRef.current === "demo" ? "requested local mode" : undefined,
       usage: result.usage,
     };
   };
@@ -232,28 +222,6 @@ export default function Home() {
       log(message, "error", key);
       throw error;
     }
-  };
-
-  const loadSample = (id: string) => {
-    const sample = sampleDocuments.find((item) => item.id === id) ?? firstSample;
-    setSelectedSampleId(sample.id);
-    const sampleData = sampleToWorkflowData(sample);
-    setWorkflowData(sampleData);
-    setSteps({
-      ...createInitialSteps(),
-      documentInput: {
-        ...createInitialSteps().documentInput,
-        status: "success",
-        summary: `Loaded ${sample.title}`,
-        input: { sampleId: sample.id, source: "sample selector" },
-        output: sampleData.document?.metadata,
-      },
-    });
-    setSelectedSegmentIndex(0);
-    setSelectedQuestionId(undefined);
-    setGlobalError(null);
-    setRunSummary(undefined);
-    log(`Loaded sample document: ${sample.title}`, "success", "documentInput");
   };
 
   const uploadFile = async (file: File) => {
@@ -306,11 +274,6 @@ export default function Home() {
     excerpt: segment.analysisWindow.excerpt,
     question: question.question,
     answer: question.answer,
-    exampleId: question.question.toLowerCase().includes("where is mara")
-      ? "ambiguous-easy"
-      : question.answer.toLowerCase().includes("orion")
-        ? "bad-evidence"
-        : "good",
   });
 
   const callJury = async (mode: JuryMode, question?: GeneratedQuestion, segment?: TextSegment) => {
@@ -341,11 +304,12 @@ export default function Home() {
     try {
       if (key === "documentInput") {
         await runGuarded("documentInput", async () => {
-          const metadata = currentData.document?.metadata ?? sampleToWorkflowData(firstSample).document?.metadata;
+          const metadata = currentData.document?.metadata;
+          if (!metadata) throw new Error("Upload a real PDF or EPUB document first.");
           return {
             input: dataRef.current.document?.metadata,
             output: metadata,
-            summary: `Document ready: ${metadata?.name ?? "sample"}`,
+            summary: `Document ready: ${metadata.name}`,
           };
         });
       }
@@ -353,7 +317,7 @@ export default function Home() {
       if (key === "textExtraction") {
         await runGuarded("textExtraction", async () => {
           const text = dataRef.current.extractedText ?? dataRef.current.document?.rawText;
-          if (!text) throw new Error("Upload a document or choose a sample first.");
+          if (!text) throw new Error("Upload a real PDF or EPUB document first.");
           return {
             input: dataRef.current.document?.metadata,
             output: { preview: shortText(text), wordCount: text.split(/\s+/).filter(Boolean).length },
@@ -731,12 +695,12 @@ export default function Home() {
   };
 
   const copyFinalJson = async () => {
-    await navigator.clipboard.writeText(JSON.stringify(finalJson, null, 2));
+    await navigator.clipboard.writeText(JSON.stringify(toUserFacingAiValue(finalJson), null, 2));
     log("Copied final JSON to clipboard.", "success", "finalOutput");
   };
 
   const exportFinalJson = () => {
-    const blob = new Blob([JSON.stringify(finalJson, null, 2)], { type: "application/json" });
+    const blob = new Blob([JSON.stringify(toUserFacingAiValue(finalJson), null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -747,13 +711,13 @@ export default function Home() {
 
   const copyVreadJson = async () => {
     if (!vreadExport) return;
-    await navigator.clipboard.writeText(JSON.stringify(vreadExport.json, null, 2));
+    await navigator.clipboard.writeText(JSON.stringify(toUserFacingAiValue(vreadExport.json), null, 2));
     log("Copied VREAD JSON export to clipboard.", "success", "vreadExport");
   };
 
   const exportVreadJson = () => {
     if (!vreadExport) return;
-    const blob = new Blob([JSON.stringify(vreadExport.json, null, 2)], { type: "application/json" });
+    const blob = new Blob([JSON.stringify(toUserFacingAiValue(vreadExport.json), null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -770,13 +734,12 @@ export default function Home() {
 
   const reset = () => {
     setSteps(createInitialSteps());
-    setWorkflowData(sampleToWorkflowData(firstSample));
+    setWorkflowData({});
     setLogs([]);
     setSelectedKey("documentInput");
     setSelectedInspectionMode("overview");
     setInspectionPopoverOpen(false);
     setInspectionAnchor(undefined);
-    setSelectedSampleId(firstSample.id);
     setSelectedSegmentIndex(0);
     setSelectedQuestionId(undefined);
     setGlobalError(null);
@@ -784,7 +747,7 @@ export default function Home() {
     setLastFailedStep(undefined);
   };
 
-  const retryInDemoMode = async () => {
+  const retryInLocalMode = async () => {
     if (!lastFailedStep) return;
     updateRuntimeRunMode("demo");
     setGlobalError(null);
@@ -793,66 +756,65 @@ export default function Home() {
 
   const runModeLabel =
     runtimeRunMode === "demo"
-      ? "Demo mode"
-      : `Live ${providerLabel(aiStatus?.liveProvider ?? selectedProvider)}`;
+      ? runtimeModeBadge(runtimeRunMode)
+      : `Live ${aiProviderDisplayName(aiStatus?.liveProvider ?? selectedProvider)}`;
 
   return (
     <AppShell>
-      <div className="relative flex h-screen flex-col overflow-hidden px-3 pb-24 pt-3 lg:px-4">
-        <div className="pointer-events-none absolute left-20 top-4 z-20 md:left-20">
+      <div className="relative h-screen overflow-hidden">
+        <div className="pointer-events-none absolute left-5 top-4 z-20">
           <h1 className="text-lg font-black tracking-tight text-slate-950">VREAD Question Jury</h1>
           {aiStatusError && <p className="mt-1 max-w-[360px] text-xs font-bold text-red-600">{aiStatusError}</p>}
         </div>
 
         {globalError && (
-          <div className="absolute left-20 right-4 top-20 z-30 flex flex-col gap-3 rounded-[22px] border border-red-200 bg-red-50/95 p-3 text-sm font-semibold text-red-700 shadow-lg backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+          <div className="absolute left-5 right-5 top-16 z-40 flex flex-col gap-3 rounded-[22px] border border-red-200 bg-red-50/95 p-3 text-sm font-semibold text-red-700 shadow-lg backdrop-blur sm:flex-row sm:items-center sm:justify-between">
             <div className="flex gap-3">
               <AlertTriangle className="h-5 w-5 shrink-0" />
               {globalError}
             </div>
-            {runtimeRunMode === "live" && lastFailedStep && (
+            <div className="flex shrink-0 items-center gap-2">
+              {runtimeRunMode === "live" && lastFailedStep && (
+                <button
+                  type="button"
+                  onClick={retryInLocalMode}
+                  className="inline-flex h-10 shrink-0 items-center justify-center rounded-2xl bg-red-600 px-4 text-sm font-black text-white transition hover:bg-red-700"
+                >
+                  Retry in Local mode
+                </button>
+              )}
               <button
                 type="button"
-                onClick={retryInDemoMode}
-                className="inline-flex h-10 shrink-0 items-center justify-center rounded-2xl bg-red-600 px-4 text-sm font-black text-white transition hover:bg-red-700"
+                onClick={() => setGlobalError(null)}
+                aria-label="Dismiss error"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-red-700 transition hover:bg-red-100"
               >
-                Retry in Demo mode
+                <X className="h-5 w-5" />
               </button>
-            )}
+            </div>
           </div>
         )}
 
-        <section
-          className={clsx(
-            "grid min-h-0 flex-1 gap-3 transition-[grid-template-columns]",
-            inspectorHidden
-              ? "grid-cols-1"
-              : "xl:grid-cols-[minmax(0,1fr)_390px] 2xl:grid-cols-[minmax(0,1fr)_420px]"
-          )}
-        >
-          <div className="min-h-0 overflow-hidden">
-            <WorkflowCanvas
-              steps={steps}
-              selectedKey={selectedKey}
-              onSelect={(key) => {
-                setSelectedKey(key);
-                setSelectedInspectionMode("overview");
-                setInspectionAnchor(undefined);
-                setInspectionPopoverOpen(false);
-              }}
-              onInspect={(key, mode, anchor) => {
-                setSelectedKey(key);
-                setSelectedInspectionMode(mode);
-                setInspectionAnchor(anchor);
-                setInspectionPopoverOpen(true);
-              }}
-            />
-          </div>
+        <WorkflowCanvas
+          steps={steps}
+          selectedKey={selectedKey}
+          onSelect={(key) => {
+            setSelectedKey(key);
+            setSelectedInspectionMode("overview");
+            setInspectionAnchor(undefined);
+            setInspectionPopoverOpen(false);
+          }}
+          onInspect={(key, mode, anchor) => {
+            setSelectedKey(key);
+            setSelectedInspectionMode(mode);
+            setInspectionAnchor(anchor);
+            setInspectionPopoverOpen(true);
+          }}
+        />
 
-          {!inspectorHidden && (
+        {!inspectorHidden && (
+          <div className="absolute bottom-24 right-3 top-3 z-30 w-[390px] max-w-[calc(100vw-24px)] 2xl:w-[420px]">
             <WorkflowSidebar
-              samples={sampleDocuments}
-              selectedSampleId={selectedSampleId}
               selectedStep={selectedStep}
               inspectionMode={selectedInspectionMode}
               data={data}
@@ -862,7 +824,6 @@ export default function Home() {
               busy={busy}
               sourceLabel={appSourceLabel}
               selectedModel={selectedModel}
-              onSampleChange={loadSample}
               onUpload={uploadFile}
               onRunFull={runFullWorkflow}
               onRunStep={(key) => runSequence([key])}
@@ -885,8 +846,8 @@ export default function Home() {
                 setInspectionPopoverOpen(true);
               }}
             />
-          )}
-        </section>
+          </div>
+        )}
       </div>
 
       <button

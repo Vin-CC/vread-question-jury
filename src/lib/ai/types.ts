@@ -1,4 +1,4 @@
-export type AiProviderName = "openrouter" | "openai" | "demo";
+export type AiProviderName = "openrouter" | "openai" | "anthropic" | "demo";
 
 export type RuntimeRunMode = "demo" | "live";
 

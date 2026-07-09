@@ -39,7 +39,7 @@ function withFallbackMeta(judges: Omit<JudgeResult, "model" | "latencyMs">[], mo
   return judges.map((judge, index) => ({
     ...judge,
     provider: "demo" as const,
-    model: mode === "fast" ? "demo/fallback-fast-jury" : `demo/fallback-${judge.judge}-judge`,
+    model: mode === "fast" ? "local/offline-fast-jury" : `local/offline-${judge.judge}-judge`,
     latencyMs: mode === "fast" ? baseLatency : baseLatency + index * 95,
     usage: {
       promptTokens: mode === "fast" ? 1250 : 520,
@@ -201,16 +201,16 @@ export function getFallbackJuryResult(input: JuryInput, mode: JuryMode): JuryRes
   const judges = withFallbackMeta(scenarioJudges(scenario), mode);
   const raw: JuryResult = {
     mode,
-    source: "fallback",
+    source: "local",
     globalScore: scenario === "good" ? 92 : scenario === "bad-evidence" ? 45 : 63,
     finalDecision:
       scenario === "good" ? "approve" : scenario === "bad-evidence" ? "reject" : "rewrite",
     summary:
       scenario === "good"
-        ? "Demo fallback verdict: the question is grounded, specific, hard to guess, and useful for reading validation."
+        ? "Local verdict: the question is grounded, specific, hard to guess, and useful for reading validation."
         : scenario === "bad-evidence"
-          ? "Demo fallback verdict: reject because the expected answer is not explicitly supported by the excerpt."
-          : "Demo fallback verdict: rewrite because the answer is supported, but the question is too broad and too easy for reliable reading validation.",
+          ? "Local verdict: reject because the expected answer is not explicitly supported by the excerpt."
+          : "Local verdict: rewrite because the answer is supported, but the question is too broad and too easy for reliable reading validation.",
     judges,
     recommendedRewrite:
       scenario === "ambiguous-easy"
@@ -221,7 +221,7 @@ export function getFallbackJuryResult(input: JuryInput, mode: JuryMode): JuryRes
           }
         : undefined,
     provider: "demo",
-    model: mode === "fast" ? "demo/fallback-fast-jury" : "demo/fallback-chief-judge",
+    model: mode === "fast" ? "local/offline-fast-jury" : "local/offline-chief-judge",
     latencyMs: mode === "fast" ? 460 : 1320,
     usage: {
       promptTokens: mode === "fast" ? 1250 : 3300,
@@ -233,7 +233,7 @@ export function getFallbackJuryResult(input: JuryInput, mode: JuryMode): JuryRes
   const normalized = normalizeFinalDecision(raw);
   return JuryResultSchema.parse({
     ...normalized,
-    source: "fallback",
+    source: "local",
     finalDecision: raw.finalDecision,
   });
 }
@@ -256,14 +256,14 @@ export function getFallbackRewrite(input: JuryInput): RewriteResult {
         : {
             question: "What object does Nimmie Amee polish inside the cottage?",
             answer: "silver whistle",
-            reason: "The original question is already strong, so the fallback keeps the grounded scene-specific version.",
+            reason: "The original question is already strong, so local mode keeps the grounded scene-specific version.",
           };
 
   return RewriteResultSchema.parse({
     ...rewrite,
-    source: "fallback",
+    source: "local",
     provider: "demo",
-    model: "demo/fallback-rewrite-agent",
+    model: "local/offline-rewrite-agent",
     latencyMs: 610,
     usage: {
       promptTokens: 900,

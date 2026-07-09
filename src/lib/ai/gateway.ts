@@ -1,6 +1,7 @@
 import { getAiConfig } from "./config";
 import { AiProviderError } from "./errors";
 import { modelForTask } from "./model-routing";
+import { AnthropicProvider } from "./providers/anthropic-provider";
 import { DemoProvider } from "./providers/demo-provider";
 import { OpenAIProvider } from "./providers/openai-provider";
 import { OpenRouterProvider } from "./providers/openrouter-provider";
@@ -10,6 +11,7 @@ export function createAiProvider(options: { forceDemoFallback?: boolean; runtime
   const config = getAiConfig(options);
   if (config.provider === "demo") return new DemoProvider();
   if (config.provider === "openai") return new OpenAIProvider(config);
+  if (config.provider === "anthropic") return new AnthropicProvider(config);
   return new OpenRouterProvider(config);
 }
 
