@@ -3,10 +3,9 @@ import {
   Database,
   Download,
   FileText,
-  Gavel,
+  PanelRightClose,
   Play,
-  RotateCcw,
-  Sparkles,
+  Split,
   Wand2,
 } from "lucide-react";
 import { clsx } from "clsx";
@@ -17,6 +16,7 @@ import type {
   GeneratedQuestion,
   InspectionAnchor,
   NodeInspectionMode,
+  QualityGateRoute,
   TextSegment,
   WorkflowData,
   WorkflowLog,
@@ -25,6 +25,13 @@ import type {
 } from "@/lib/workflow/types";
 
 type InspectorTab = NodeInspectionMode;
+
+const routeLabels: Record<QualityGateRoute, string> = {
+  approve: "Approve",
+  strictReview: "Strict Review",
+  rewrite: "Rewrite",
+  reject: "Reject",
+};
 
 const tabs: Array<{ key: InspectorTab; label: string }> = [
   { key: "overview", label: "Overview" },
@@ -99,18 +106,14 @@ export function WorkflowSidebar({
   busy,
   selectedModel,
   onUpload,
-  onRunFull,
   onRunStep,
-  onRunFromSelected,
-  onRunFastJury,
-  onRunStrictJury,
   onRewrite,
   onCopy,
   onExport,
   onCopyVreadJson,
   onExportVreadJson,
   onCopySqlPreview,
-  onReset,
+  onCollapse,
   onSegmentChange,
   onQuestionChange,
   onInspectionModeChange,
@@ -124,32 +127,33 @@ export function WorkflowSidebar({
   busy: boolean;
   selectedModel?: string;
   onUpload: (file: File) => void;
-  onRunFull: () => void;
   onRunStep: (key: WorkflowStepKey) => void;
-  onRunFromSelected: () => void;
-  onRunFastJury: () => void;
-  onRunStrictJury: () => void;
   onRewrite: () => void;
   onCopy: () => void;
   onExport: () => void;
   onCopyVreadJson: () => void;
   onExportVreadJson: () => void;
   onCopySqlPreview: () => void;
-  onReset: () => void;
+  onCollapse: () => void;
   onSegmentChange: (index: number) => void;
   onQuestionChange: (id: string) => void;
   onInspectionModeChange: (mode: NodeInspectionMode) => void;
-  onOpenInspection: (mode: NodeInspectionMode, anchor?: InspectionAnchor) => void;
+  onOpenInspection?: (mode: NodeInspectionMode, anchor?: InspectionAnchor) => void;
 }) {
   const segments = data.segments ?? [];
   const questions = data.generatedQuestions ?? [];
   const latestJury = data.strictJuryResult ?? data.fastJuryResult;
+  const qualityGate = data.qualityGateResult;
   const final = data.finalApprovedQuestion;
   const integrity = data.integrityReport;
   const exportBundle = data.vreadExport;
   const runSummary = data.runSummary;
   const hasInput = selectedStep.input !== undefined;
   const hasOutput = selectedStep.output !== undefined;
+  // Rewrite is offered when its node is selected, or when the latest jury /
+  // gate output recommends a rewrite for the current question.
+  const rewriteRecommended =
+    qualityGate?.route === "rewrite" || latestJury?.finalDecision === "rewrite";
 
   const overviewValue = {
     key: selectedStep.key,
@@ -179,8 +183,17 @@ export function WorkflowSidebar({
             <h2 className="mt-1 text-lg font-black text-slate-950">{selectedStep.label}</h2>
             <p className="mt-1 line-clamp-2 text-xs text-slate-500">{selectedStep.summary}</p>
           </div>
+          <button
+            type="button"
+            onClick={onCollapse}
+            aria-label="Hide inspector"
+            title="Hide inspector"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-500 transition hover:border-violet-200 hover:text-violet-700"
+          >
+            <PanelRightClose className="h-4 w-4" />
+          </button>
         </div>
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-3 flex flex-wrap gap-1.5">
           {tabs.map((tab) => {
             const available =
               tab.key === "overview" ||
@@ -193,7 +206,7 @@ export function WorkflowSidebar({
                 type="button"
                 onClick={() => onInspectionModeChange(tab.key)}
                 className={clsx(
-                  "h-9 rounded-2xl border px-3 text-xs font-black transition",
+                  "h-8 rounded-2xl border px-2 text-[11px] font-black transition",
                   inspectionMode === tab.key && "border-violet-300 bg-violet-600 text-white shadow-lg shadow-violet-600/20",
                   inspectionMode !== tab.key && available && "border-slate-200 bg-slate-50 text-slate-700 hover:border-violet-200",
                   inspectionMode !== tab.key && !available && "border-slate-100 bg-slate-50 text-slate-400"
@@ -275,6 +288,7 @@ export function WorkflowSidebar({
           />
         )}
 
+        {selectedStep.key === "documentInput" && (
         <section className="mt-4 rounded-[24px] border border-slate-200 bg-slate-50 p-4">
           <div className="mb-3 flex items-center gap-2 text-sm font-black text-slate-900">
             <FileText className="h-4 w-4 text-violet-600" />
@@ -313,6 +327,7 @@ export function WorkflowSidebar({
             />
           </label>
         </section>
+        )}
 
         {(segments.length > 0 || questions.length > 0) && (
           <section className="mt-4 grid gap-3 rounded-[24px] border border-slate-200 bg-slate-50 p-4">
@@ -352,41 +367,64 @@ export function WorkflowSidebar({
           </section>
         )}
 
-        <section className="mt-4 grid grid-cols-2 gap-2">
-          <button type="button" disabled={busy} onClick={() => onRunStep(selectedStep.key)} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-950 text-sm font-black text-white transition hover:bg-violet-700 disabled:opacity-50">
+        {/* Contextual actions only — global run/reset/export controls live in
+            the bottom action bar. */}
+        <section className="mt-4 grid gap-2">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => (selectedStep.key === "rewrite" ? onRewrite() : onRunStep(selectedStep.key))}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-950 text-sm font-black text-white transition hover:bg-violet-700 disabled:opacity-50"
+          >
             <Play className="h-4 w-4" />
-            Run selected
+            Run {selectedStep.label}
           </button>
-          <button type="button" disabled={busy} onClick={onRunFull} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-violet-600 text-sm font-black text-white shadow-lg shadow-violet-600/20 transition hover:bg-violet-700 disabled:opacity-50">
-            <Play className="h-4 w-4" />
-            Run full
-          </button>
-          <button type="button" disabled={busy} onClick={onRunFromSelected} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white text-sm font-black text-slate-700 transition hover:border-violet-200 hover:text-violet-700">
-            <Sparkles className="h-4 w-4" />
-            From step
-          </button>
-          <button type="button" onClick={onReset} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white text-sm font-black text-slate-700">
-            <RotateCcw className="h-4 w-4" />
-            Reset
-          </button>
-          <button type="button" disabled={busy} onClick={onRunFastJury} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-blue-200 bg-blue-50 text-sm font-black text-blue-700">
-            <Gavel className="h-4 w-4" />
-            Fast Jury
-          </button>
-          <button type="button" disabled={busy} onClick={onRunStrictJury} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-purple-200 bg-purple-50 text-sm font-black text-purple-700">
-            <Gavel className="h-4 w-4" />
-            Strict Jury
-          </button>
-          <button type="button" disabled={busy} onClick={onRewrite} className="col-span-2 inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-orange-200 bg-orange-50 text-sm font-black text-orange-700">
-            <Wand2 className="h-4 w-4" />
-            Rewrite
-          </button>
+          {rewriteRecommended && selectedStep.key !== "rewrite" && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onRewrite}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-orange-200 bg-orange-50 text-sm font-black text-orange-700 transition hover:border-orange-300 disabled:opacity-50"
+            >
+              <Wand2 className="h-4 w-4" />
+              Rewrite (recommended)
+            </button>
+          )}
         </section>
+
+        {qualityGate && inspectionMode !== "final" && (
+          <section className="mt-4 rounded-[24px] border border-amber-200 bg-amber-50/60 p-4">
+            <div className="mb-2 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm font-black text-slate-950">
+                <Split className="h-4 w-4 text-amber-600" />
+                Quality Gate
+              </div>
+              <span
+                className={clsx(
+                  "inline-flex items-center rounded-full border px-3 py-1 text-xs font-black uppercase",
+                  qualityGate.route === "approve" && "border-emerald-200 bg-emerald-50 text-emerald-800",
+                  qualityGate.route === "strictReview" && "border-purple-200 bg-purple-50 text-purple-800",
+                  qualityGate.route === "rewrite" && "border-orange-200 bg-orange-50 text-orange-800",
+                  qualityGate.route === "reject" && "border-red-200 bg-red-50 text-red-800"
+                )}
+              >
+                {routeLabels[qualityGate.route]}
+              </span>
+            </div>
+            <p className="text-sm leading-relaxed text-slate-600">{qualityGate.reason}</p>
+            <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-bold uppercase text-slate-500">
+              <span className="rounded-full bg-white px-2.5 py-1">Fast score {qualityGate.fastJuryScore}</span>
+              <span className="rounded-full bg-white px-2.5 py-1">Evidence {qualityGate.evidenceDecision}</span>
+            </div>
+          </section>
+        )}
 
         {latestJury && inspectionMode !== "final" && (
           <section className="mt-4 rounded-[24px] border border-slate-200 bg-white p-4">
             <div className="mb-3 flex items-center justify-between">
-              <div className="text-sm font-black text-slate-950">Jury result</div>
+              <div className="text-sm font-black text-slate-950">
+                Jury result · {latestJury.mode === "strict" ? "Strict Review" : "Fast Jury"}
+              </div>
               <StatusBadge decision={latestJury.finalDecision} compact />
             </div>
             <div className="mb-2 flex items-center gap-3">

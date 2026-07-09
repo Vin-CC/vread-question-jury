@@ -37,14 +37,20 @@ export const workflowNodeDefinitions: Array<Pick<WorkflowStepState, "key" | "lab
     summary: "One-call low-cost jury screening.",
   },
   {
+    key: "qualityGate",
+    label: "Quality Gate",
+    summary:
+      "Routes the generated question based on Fast Jury results: approve, escalate to Strict Review, rewrite, or reject.",
+  },
+  {
     key: "strictJury",
-    label: "Strict Jury",
-    summary: "Parallel specialized judges and Chief Judge aggregation.",
+    label: "Strict Review",
+    summary: "Escalation branch: parallel specialized judges and Chief Judge aggregation.",
   },
   {
     key: "rewrite",
     label: "Rewrite",
-    summary: "Improve fixable weak questions.",
+    summary: "Correction branch: improve fixable weak questions, then re-judge.",
   },
   {
     key: "integrityChecks",

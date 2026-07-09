@@ -94,8 +94,17 @@ export const JudgeResultSchema = z.object({
   score: z.number().int().min(0).max(100),
   decision: JudgeDecisionSchema,
   reason: z.string().min(8).max(1000),
-  failureModes: z.array(z.string().min(1).max(160)).max(8),
-  suggestedFix: z.string().min(1).max(600).optional(),
+  // Models often emit empty strings for these optional fields (the prompt
+  // template shows them on every judge), so normalize instead of rejecting.
+  failureModes: z
+    .array(z.string().max(160))
+    .max(8)
+    .transform((modes) => modes.filter((mode) => mode.trim().length > 0)),
+  suggestedFix: z
+    .string()
+    .max(600)
+    .optional()
+    .transform((fix) => (fix && fix.trim().length > 0 ? fix : undefined)),
   provider: AiProviderNameSchema.optional(),
   model: z.string().optional(),
   latencyMs: z.number().int().nonnegative().optional(),

@@ -1,16 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, PanelRightClose, PanelRightOpen, X } from "lucide-react";
+import { AlertTriangle, PanelRightOpen, X } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { WorkflowCanvas } from "@/components/workflow/WorkflowCanvas";
 import { InspectionPopover } from "@/components/workflow/InspectionPopover";
 import { WorkflowSidebar } from "@/components/workflow/WorkflowSidebar";
 import { WorkflowBottomBar } from "@/components/workflow/WorkflowBottomBar";
-import { aiProviderDisplayName, toUserFacingAiValue } from "@/lib/ai/display";
+import { toUserFacingAiValue } from "@/lib/ai/display";
 import type { AiProviderName, AiPublicStatus, AiTask } from "@/lib/ai/types";
 import type { JuryInput, JuryMode, JuryResult, RewriteResult } from "@/lib/jury/types";
 import { createInitialSteps, workflowStepKeys } from "@/lib/workflow/nodeDefinitions";
+import { evaluateQualityGate, juryStepAfterRewrite } from "@/lib/workflow/qualityGate";
 import { cleanText } from "@/lib/workflow/runners/cleanText";
 import { segmentText } from "@/lib/workflow/runners/segmentText";
 import {
@@ -82,11 +83,13 @@ export default function Home() {
       ? selectedQuestion
       : selectedKey === "fastJury"
         ? data.fastJuryResult
-        : selectedKey === "strictJury"
-          ? data.strictJuryResult
-          : selectedKey === "rewrite"
-            ? data.rewrittenQuestion
-            : latestJury ?? selectedQuestion;
+        : selectedKey === "qualityGate"
+          ? undefined
+          : selectedKey === "strictJury"
+            ? data.strictJuryResult
+            : selectedKey === "rewrite"
+              ? data.rewrittenQuestion
+              : latestJury ?? selectedQuestion;
   const selectedTask = aiTaskForStep(selectedKey);
   const selectedModel =
     selectedAiResult?.model ?? (selectedTask && aiStatus?.models[selectedTask]) ?? undefined;
@@ -241,7 +244,7 @@ export default function Home() {
         output: { metadata: body.metadata, preview: shortText(body.text) },
       });
       log(`Extracted text from ${file.name}`, "success", "textExtraction");
-      await runSequence(workflowStepKeys.slice(2));
+      await runBranchingFlow("cleaning");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Upload extraction failed.";
       patchStep("textExtraction", { status: "error", error: message });
@@ -396,7 +399,28 @@ export default function Home() {
             },
             output: result,
             summary: `Fast Jury returned ${result.finalDecision} with score ${result.globalScore}`,
-            dataPatch: { fastJuryResult: result },
+            // A new fast verdict invalidates any previous routing and strict result.
+            dataPatch: { fastJuryResult: result, qualityGateResult: undefined, strictJuryResult: undefined },
+          };
+        });
+      }
+
+      if (key === "qualityGate") {
+        await runGuarded("qualityGate", async () => {
+          const fastJury = dataRef.current.fastJuryResult;
+          if (!fastJury) throw new Error("Run Fast Jury before evaluating the Quality Gate.");
+          const decision = evaluateQualityGate(fastJury, {
+            rewriteAttempted: dataRef.current.rewriteAttempted,
+          });
+          return {
+            input: {
+              fastJuryScore: fastJury.globalScore,
+              fastJuryDecision: fastJury.finalDecision,
+              rewriteAttempted: Boolean(dataRef.current.rewriteAttempted),
+            },
+            output: decision,
+            summary: `Quality Gate routed to ${decision.route}: ${decision.reason}`,
+            dataPatch: { qualityGateResult: decision },
           };
         });
       }
@@ -409,9 +433,10 @@ export default function Home() {
               question: dataRef.current.selectedQuestion ?? dataRef.current.generatedQuestions?.[0],
               segment: dataRef.current.selectedSegment ?? dataRef.current.segments?.[selectedSegmentIndex],
               fastJuryResult: dataRef.current.fastJuryResult,
+              qualityGateResult: dataRef.current.qualityGateResult,
             },
             output: result,
-            summary: `Strict Jury returned ${result.finalDecision} with score ${result.globalScore}`,
+            summary: `Strict Review returned ${result.finalDecision} with score ${result.globalScore}`,
             dataPatch: { strictJuryResult: result },
           };
         });
@@ -439,6 +464,19 @@ export default function Home() {
           });
           const body = (await response.json()) as { rewrite?: RewriteResult; error?: string };
           if (!response.ok || !body.rewrite) throw new Error(body.error || "Rewrite failed.");
+          // The rewritten question becomes the active candidate so any later
+          // jury pass and the final output judge the improved version.
+          const rewrittenCandidate: GeneratedQuestion = {
+            id: `${question.id}-rewrite`,
+            segmentIndex: question.segmentIndex,
+            question: body.rewrite.question,
+            answer: body.rewrite.answer,
+            rationale: body.rewrite.reason,
+            provider: body.rewrite.provider,
+            model: body.rewrite.model,
+            latencyMs: body.rewrite.latencyMs,
+            usage: body.rewrite.usage,
+          };
           return {
             input: {
               question,
@@ -447,7 +485,11 @@ export default function Home() {
             },
             output: body.rewrite,
             summary: `Rewrite proposed: ${body.rewrite.question}`,
-            dataPatch: { rewrittenQuestion: body.rewrite },
+            dataPatch: {
+              rewrittenQuestion: body.rewrite,
+              rewriteAttempted: true,
+              selectedQuestion: rewrittenCandidate,
+            },
           };
         });
       }
@@ -506,8 +548,25 @@ export default function Home() {
       }
 
       if (key === "finalOutput") {
-        await runGuarded("finalOutput", async () => {
+        await runGuarded<unknown>("finalOutput", async () => {
           const jury = dataRef.current.strictJuryResult ?? dataRef.current.fastJuryResult;
+          const gate = dataRef.current.qualityGateResult;
+
+          if (jury?.finalDecision === "reject") {
+            const rejectedOutput = {
+              status: "rejected" as const,
+              reason: gate?.route === "reject" ? gate.reason : jury.summary,
+              jury,
+              qualityGate: gate,
+            };
+            return {
+              input: { jury, qualityGateResult: gate },
+              output: rejectedOutput,
+              summary: "Final output marked as rejected by the jury.",
+              dataPatch: { finalStatus: "rejected" as const, finalApprovedQuestion: undefined },
+            };
+          }
+
           const segment = dataRef.current.selectedSegment ?? dataRef.current.segments?.[selectedSegmentIndex];
           const question =
             dataRef.current.rewrittenQuestion && jury?.finalDecision === "rewrite"
@@ -536,7 +595,7 @@ export default function Home() {
             },
             output: finalApprovedQuestion,
             summary: "Final JSON output is ready.",
-            dataPatch: { finalApprovedQuestion },
+            dataPatch: { finalApprovedQuestion, finalStatus: "approved" as const },
           };
         });
       }
@@ -549,7 +608,59 @@ export default function Home() {
     }
   };
 
-  const runSequence = async (keys: WorkflowStepKey[]) => {
+  const markSkipped = (keys: WorkflowStepKey[], reason: string) => {
+    if (keys.length === 0) return;
+    setSteps((current) => {
+      const next = { ...current };
+      for (const key of keys) {
+        next[key] = { ...current[key], status: "skipped", summary: reason, error: undefined };
+      }
+      return next;
+    });
+    for (const key of keys) {
+      log(`${steps[key].label} skipped: ${reason}`, "info", key);
+    }
+  };
+
+  // Steps at and after Fast Jury depend on the routing decision, so a fresh
+  // run must clear their previous statuses and derived data.
+  const juryAndTailKeys: WorkflowStepKey[] = [
+    "fastJury",
+    "qualityGate",
+    "strictJury",
+    "rewrite",
+    "integrityChecks",
+    "vreadExport",
+    "finalOutput",
+  ];
+
+  const resetJuryPhase = () => {
+    const initial = createInitialSteps();
+    setSteps((current) => {
+      const next = { ...current };
+      for (const key of juryAndTailKeys) next[key] = initial[key];
+      return next;
+    });
+    setWorkflowData((current) => ({
+      ...current,
+      fastJuryResult: undefined,
+      qualityGateResult: undefined,
+      strictJuryResult: undefined,
+      rewrittenQuestion: undefined,
+      rewriteAttempted: undefined,
+      finalStatus: undefined,
+      integrityReport: undefined,
+      vreadExport: undefined,
+      finalApprovedQuestion: undefined,
+      selectedQuestion:
+        current.generatedQuestions?.find((question) => question.id === selectedQuestionId) ??
+        current.generatedQuestions?.[0],
+    }));
+  };
+
+  const runWithSummary = async (
+    body: (runOne: (key: WorkflowStepKey) => Promise<boolean>) => Promise<void>
+  ) => {
     const startedAtMs = Date.now();
     const startedAt = new Date(startedAtMs).toISOString();
     const runId = crypto.randomUUID();
@@ -557,7 +668,7 @@ export default function Home() {
       runId,
       startedAt,
       status: "running",
-      numberOfSteps: keys.length,
+      numberOfSteps: 0,
       successfulSteps: 0,
       failedSteps: 0,
       providerUsed: aiStatus?.provider,
@@ -568,13 +679,18 @@ export default function Home() {
 
     let successfulSteps = 0;
     let failedSteps = 0;
+    let executedSteps = 0;
 
-    for (const key of keys) {
+    const runOne = async (key: WorkflowStepKey) => {
+      executedSteps += 1;
       setSelectedKey(key);
       const success = await runStep(key);
       if (success) successfulSteps += 1;
       else failedSteps += 1;
-    }
+      return Boolean(success);
+    };
+
+    await body(runOne);
 
     const completedAtMs = Date.now();
     const completedData = dataRef.current;
@@ -583,7 +699,7 @@ export default function Home() {
     const status: WorkflowRunSummary["status"] =
       failedSteps > 0 || integrityStatus === "fail"
         ? "failed"
-        : integrityStatus === "warning"
+        : completedData.finalStatus === "rejected" || integrityStatus === "warning"
           ? "warning"
           : "success";
     const completedSummary: WorkflowRunSummary = {
@@ -592,7 +708,7 @@ export default function Home() {
       completedAt: new Date(completedAtMs).toISOString(),
       durationMs: completedAtMs - startedAtMs,
       status,
-      numberOfSteps: keys.length,
+      numberOfSteps: executedSteps,
       successfulSteps,
       failedSteps,
       providerUsed: providerFromData(completedData) ?? aiStatus?.provider,
@@ -633,13 +749,118 @@ export default function Home() {
     }));
   };
 
+  // Plain sequence without branching, used for manual single-step runs.
+  const runSequence = async (keys: WorkflowStepKey[]) => {
+    await runWithSummary(async (runOne) => {
+      for (const key of keys) {
+        await runOne(key);
+      }
+    });
+  };
+
+  const tailKeys: WorkflowStepKey[] = ["integrityChecks", "vreadExport", "finalOutput"];
+
+  // Cost-aware execution: Fast Jury feeds the Quality Gate, which decides
+  // whether to approve directly, escalate to Strict Review, rewrite and
+  // re-judge, or stop with a rejected output. Branches that are not taken
+  // are marked as skipped.
+  const runBranchingFlow = async (startKey: WorkflowStepKey) => {
+    await runWithSummary(async (runOne) => {
+      const executed = new Set<WorkflowStepKey>();
+      const exec = async (key: WorkflowStepKey) => {
+        executed.add(key);
+        return runOne(key);
+      };
+      const skip = (keys: WorkflowStepKey[], reason: string) =>
+        markSkipped(keys.filter((key) => !executed.has(key)), reason);
+
+      const runTail = async (from: WorkflowStepKey = "integrityChecks") => {
+        for (const key of tailKeys.slice(tailKeys.indexOf(from))) {
+          if (!(await exec(key))) return;
+        }
+      };
+
+      const handleStrictResult = async (): Promise<"proceed" | "rejected" | "stop"> => {
+        const strict = dataRef.current.strictJuryResult;
+        if (!strict) return "stop";
+        if (strict.finalDecision === "reject") return "rejected";
+        if (strict.finalDecision === "rewrite" && !dataRef.current.rewriteAttempted) {
+          if (!(await exec("rewrite"))) return "stop";
+        }
+        return "proceed";
+      };
+
+      const gateLoop = async (): Promise<"proceed" | "rejected" | "stop"> => {
+        for (;;) {
+          if (!(await exec("qualityGate"))) return "stop";
+          const gate = dataRef.current.qualityGateResult;
+          if (!gate) return "stop";
+          if (gate.route === "approve") return "proceed";
+          if (gate.route === "reject") return "rejected";
+          if (gate.route === "strictReview") {
+            if (!(await exec("strictJury"))) return "stop";
+            return handleStrictResult();
+          }
+          // route === "rewrite": fix the question, then re-judge it. The gate
+          // escalates instead of rewriting twice, so this loop is bounded.
+          if (!(await exec("rewrite"))) return "stop";
+          if (juryStepAfterRewrite(gate) === "fastJury") {
+            if (!(await exec("fastJury"))) return "stop";
+            continue;
+          }
+          if (!(await exec("strictJury"))) return "stop";
+          return handleStrictResult();
+        }
+      };
+
+      if (workflowStepKeys.indexOf(startKey) <= workflowStepKeys.indexOf("fastJury")) {
+        resetJuryPhase();
+      }
+
+      if (tailKeys.includes(startKey)) {
+        await runTail(startKey);
+        return;
+      }
+
+      let outcome: "proceed" | "rejected" | "stop";
+      if (startKey === "strictJury") {
+        outcome = (await exec("strictJury")) ? await handleStrictResult() : "stop";
+      } else if (startKey === "rewrite") {
+        outcome = (await exec("rewrite")) && (await exec("fastJury")) ? await gateLoop() : "stop";
+      } else if (startKey === "qualityGate") {
+        outcome = await gateLoop();
+      } else {
+        if (startKey !== "fastJury") {
+          const preJuryKeys = workflowStepKeys.slice(0, workflowStepKeys.indexOf("fastJury"));
+          for (const key of preJuryKeys.slice(preJuryKeys.indexOf(startKey))) {
+            if (!(await exec(key))) return;
+          }
+        }
+        if (!(await exec("fastJury"))) return;
+        outcome = await gateLoop();
+      }
+
+      if (outcome === "stop") return;
+      if (outcome === "rejected") {
+        skip(
+          ["strictJury", "rewrite", "integrityChecks", "vreadExport"],
+          "Skipped — the jury rejected the question."
+        );
+        await exec("finalOutput");
+        return;
+      }
+      skip(["strictJury"], "Skipped — Fast Jury score was high with no critical issue.");
+      skip(["rewrite"], "Skipped — no rewrite was needed.");
+      await runTail();
+    });
+  };
+
   const runFullWorkflow = async () => {
-    await runSequence(workflowStepKeys);
+    await runBranchingFlow("documentInput");
   };
 
   const runFromSelected = async () => {
-    const start = workflowStepKeys.indexOf(selectedKey);
-    await runSequence(workflowStepKeys.slice(Math.max(0, start)));
+    await runBranchingFlow(selectedKey);
   };
 
   const onSegmentChange = (index: number) => {
@@ -670,8 +891,10 @@ export default function Home() {
     runSummary: data.runSummary ?? runSummary,
     generatedQuestions: data.generatedQuestions,
     fastJuryResult: data.fastJuryResult,
+    qualityGateResult: data.qualityGateResult,
     strictJuryResult: data.strictJuryResult,
     rewrittenQuestion: data.rewrittenQuestion,
+    finalStatus: data.finalStatus,
   };
 
   const copyFinalJson = async () => {
@@ -728,50 +951,53 @@ export default function Home() {
 
   return (
     <AppShell>
-      <div className="relative h-screen overflow-hidden">
-        <div className="pointer-events-none absolute left-5 top-4 z-20">
-          <h1 className="text-lg font-black tracking-tight text-slate-950">VREAD Question Jury</h1>
-          {aiStatusError && <p className="mt-1 max-w-[360px] text-xs font-bold text-red-600">{aiStatusError}</p>}
+      <div className="flex h-screen gap-3 overflow-hidden p-3 pb-24">
+        <div className="relative min-w-0 flex-1">
+          <div className="pointer-events-none absolute left-5 top-4 z-20">
+            <h1 className="text-lg font-black tracking-tight text-slate-950">VREAD Question Jury</h1>
+            {aiStatusError && <p className="mt-1 max-w-[360px] text-xs font-bold text-red-600">{aiStatusError}</p>}
+          </div>
+
+          {globalError && (
+            <div className="absolute left-5 right-5 top-16 z-40 flex flex-col gap-3 rounded-[22px] border border-red-200 bg-red-50/95 p-3 text-sm font-semibold text-red-700 shadow-lg backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex gap-3">
+                <AlertTriangle className="h-5 w-5 shrink-0" />
+                {globalError}
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setGlobalError(null)}
+                  aria-label="Dismiss error"
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-red-700 transition hover:bg-red-100"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          <WorkflowCanvas
+            steps={steps}
+            selectedKey={selectedKey}
+            fitTrigger={inspectorHidden}
+            onSelect={(key) => {
+              setSelectedKey(key);
+              setSelectedInspectionMode("overview");
+              setInspectionAnchor(undefined);
+              setInspectionPopoverOpen(false);
+            }}
+            onInspect={(key, mode, anchor) => {
+              setSelectedKey(key);
+              setSelectedInspectionMode(mode);
+              setInspectionAnchor(anchor);
+              setInspectionPopoverOpen(true);
+            }}
+          />
         </div>
 
-        {globalError && (
-          <div className="absolute left-5 right-5 top-16 z-40 flex flex-col gap-3 rounded-[22px] border border-red-200 bg-red-50/95 p-3 text-sm font-semibold text-red-700 shadow-lg backdrop-blur sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex gap-3">
-              <AlertTriangle className="h-5 w-5 shrink-0" />
-              {globalError}
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setGlobalError(null)}
-                aria-label="Dismiss error"
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-red-700 transition hover:bg-red-100"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-          </div>
-        )}
-
-        <WorkflowCanvas
-          steps={steps}
-          selectedKey={selectedKey}
-          onSelect={(key) => {
-            setSelectedKey(key);
-            setSelectedInspectionMode("overview");
-            setInspectionAnchor(undefined);
-            setInspectionPopoverOpen(false);
-          }}
-          onInspect={(key, mode, anchor) => {
-            setSelectedKey(key);
-            setSelectedInspectionMode(mode);
-            setInspectionAnchor(anchor);
-            setInspectionPopoverOpen(true);
-          }}
-        />
-
         {!inspectorHidden && (
-          <div className="absolute bottom-24 right-3 top-3 z-30 w-[390px] max-w-[calc(100vw-24px)] 2xl:w-[420px]">
+          <div className="w-[340px] shrink-0">
             <WorkflowSidebar
               selectedStep={selectedStep}
               inspectionMode={selectedInspectionMode}
@@ -782,18 +1008,14 @@ export default function Home() {
               busy={busy}
               selectedModel={selectedModel}
               onUpload={uploadFile}
-              onRunFull={runFullWorkflow}
               onRunStep={(key) => runSequence([key])}
-              onRunFromSelected={runFromSelected}
-              onRunFastJury={() => runSequence(["fastJury"])}
-              onRunStrictJury={() => runSequence(["strictJury"])}
               onRewrite={() => runSequence(["rewrite"])}
               onCopy={copyFinalJson}
               onExport={exportFinalJson}
               onCopyVreadJson={copyVreadJson}
               onExportVreadJson={exportVreadJson}
               onCopySqlPreview={copySqlPreview}
-              onReset={reset}
+              onCollapse={() => setInspectorHidden(true)}
               onSegmentChange={onSegmentChange}
               onQuestionChange={onQuestionChange}
               onInspectionModeChange={setSelectedInspectionMode}
@@ -807,14 +1029,16 @@ export default function Home() {
         )}
       </div>
 
-      <button
-        type="button"
-        onClick={() => setInspectorHidden((value) => !value)}
-        className="fixed right-4 top-4 z-40 inline-flex h-11 items-center gap-2 rounded-2xl border border-white/80 bg-white/95 px-3 text-sm font-black text-slate-700 shadow-lg backdrop-blur transition hover:text-violet-700"
-      >
-        {inspectorHidden ? <PanelRightOpen className="h-4 w-4" /> : <PanelRightClose className="h-4 w-4" />}
-        {inspectorHidden ? "Show panel" : "Hide panel"}
-      </button>
+      {inspectorHidden && (
+        <button
+          type="button"
+          onClick={() => setInspectorHidden(false)}
+          className="fixed right-4 top-4 z-40 inline-flex h-11 items-center gap-2 rounded-2xl border border-white/80 bg-white/95 px-3 text-sm font-black text-slate-700 shadow-lg backdrop-blur transition hover:text-violet-700"
+        >
+          <PanelRightOpen className="h-4 w-4" />
+          Inspector
+        </button>
+      )}
 
       <WorkflowBottomBar
         busy={busy}

@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Circle,
+  CircleSlash,
   Database,
   Download,
   FileText,
@@ -14,6 +15,7 @@ import {
   Scissors,
   ShieldCheck,
   Sparkles,
+  Split,
   Wand2,
 } from "lucide-react";
 import { clsx } from "clsx";
@@ -41,6 +43,26 @@ const iconByStatus = {
   running: Loader2,
   success: CheckCircle2,
   error: AlertTriangle,
+  skipped: CircleSlash,
+};
+
+// Invisible connection points for the branch edges, rendered only on the
+// nodes that use them and anchored on the circle (not the node box) so the
+// edges visually attach to the module itself.
+const branchHandles: Partial<
+  Record<WorkflowStepKey, Array<{ id: string; type: "source" | "target"; position: Position; className?: string }>>
+> = {
+  fastJury: [{ id: "target-top", type: "target", position: Position.Top }],
+  qualityGate: [
+    { id: "source-top", type: "source", position: Position.Top },
+    { id: "source-bottom", type: "source", position: Position.Bottom },
+  ],
+  rewrite: [
+    { id: "target-bottom", type: "target", position: Position.Bottom, className: "!left-[42%]" },
+    { id: "source-bottom", type: "source", position: Position.Bottom, className: "!left-[58%]" },
+  ],
+  strictJury: [{ id: "target-top", type: "target", position: Position.Top }],
+  integrityChecks: [{ id: "target-bottom", type: "target", position: Position.Bottom }],
 };
 
 const moduleConfig: Record<WorkflowStepKey, { label: string; icon: typeof FileText; color: string; soft: string }> = {
@@ -86,8 +108,14 @@ const moduleConfig: Record<WorkflowStepKey, { label: string; icon: typeof FileTe
     color: "from-violet-500 to-purple-600",
     soft: "bg-violet-50 text-violet-700",
   },
+  qualityGate: {
+    label: "Quality Gate",
+    icon: Split,
+    color: "from-amber-400 to-orange-500",
+    soft: "bg-amber-50 text-amber-700",
+  },
   strictJury: {
-    label: "Strict Jury",
+    label: "Strict Review",
     icon: ShieldCheck,
     color: "from-purple-600 to-fuchsia-600",
     soft: "bg-purple-50 text-purple-700",
@@ -135,14 +163,35 @@ function WorkflowNode({ data }: NodeProps) {
     });
   };
 
+  const skipped = node.status === "skipped";
+
   return (
     <div
       className={clsx(
         "group flex w-[160px] cursor-pointer flex-col items-center transition duration-300",
-        node.selected && "scale-[1.03]"
+        node.selected && "scale-[1.03]",
+        skipped && "opacity-55 saturate-[.35]"
       )}
     >
-      <Handle type="target" position={Position.Left} className="!h-3 !w-3 !border-2 !border-white !bg-violet-400" />
+      <Handle
+        id="target-left"
+        type="target"
+        position={Position.Left}
+        className="!left-[16px] !top-[58px] !h-3 !w-3 !border-2 !border-white !bg-violet-400"
+      />
+      {(branchHandles[node.key] ?? []).map((handle) => (
+        <Handle
+          key={handle.id}
+          id={handle.id}
+          type={handle.type}
+          position={handle.position}
+          className={clsx(
+            "!pointer-events-none !h-2 !w-2 !min-h-0 !min-w-0 !border-0 !bg-transparent",
+            handle.position === Position.Top ? "!top-0" : "!bottom-auto !top-[112px]",
+            handle.className
+          )}
+        />
+      ))}
       <div
         className={clsx(
           "relative flex h-[116px] w-[116px] items-center justify-center rounded-full border-[6px] bg-white shadow-[0_18px_40px_rgba(15,23,42,0.16)] transition duration-300",
@@ -150,6 +199,7 @@ function WorkflowNode({ data }: NodeProps) {
           node.status === "running" && "animate-pulse border-blue-400 shadow-blue-400/30",
           node.status === "success" && "border-emerald-400 shadow-emerald-400/25",
           node.status === "error" && "border-red-400 shadow-red-400/25",
+          skipped && "border-dashed border-slate-300 shadow-none",
           node.selected && "border-violet-500 shadow-[0_0_0_8px_rgba(124,58,237,0.16),0_20px_45px_rgba(79,70,229,0.28)]"
         )}
       >
@@ -165,14 +215,20 @@ function WorkflowNode({ data }: NodeProps) {
             node.status === "running" && "animate-spin text-blue-600",
             node.status === "success" && "text-emerald-600",
             node.status === "error" && "text-red-600",
-            node.status === "idle" && "text-slate-400"
+            node.status === "idle" && "text-slate-400",
+            skipped && "text-slate-400"
           )}
         />
       </div>
       <div className="mt-4 text-center">
         <div className="text-base font-black text-slate-950">{config.label}</div>
-        <div className={clsx("mt-1 inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold uppercase", config.soft)}>
-          Step {node.stepNumber}
+        <div
+          className={clsx(
+            "mt-1 inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold uppercase",
+            skipped ? "bg-slate-100 text-slate-500" : config.soft
+          )}
+        >
+          {skipped ? "Skipped" : `Step ${node.stepNumber}`}
         </div>
       </div>
       <div className="nodrag nopan mt-3 flex gap-2 opacity-100 transition md:opacity-0 md:group-hover:opacity-100">
@@ -203,7 +259,12 @@ function WorkflowNode({ data }: NodeProps) {
           Output
         </button>
       </div>
-      <Handle type="source" position={Position.Right} className="!h-3 !w-3 !border-2 !border-white !bg-emerald-400" />
+      <Handle
+        id="source-right"
+        type="source"
+        position={Position.Right}
+        className="!left-auto !right-[16px] !top-[58px] !h-3 !w-3 !border-2 !border-white !bg-emerald-400"
+      />
     </div>
   );
 }

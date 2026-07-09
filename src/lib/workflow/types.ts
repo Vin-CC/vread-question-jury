@@ -1,8 +1,8 @@
 import { z } from "zod";
 import type { AiProviderName, AiTask } from "@/lib/ai/types";
-import type { JuryResult, RewriteResult } from "@/lib/jury/types";
+import type { JudgeDecision, JuryResult, RewriteResult } from "@/lib/jury/types";
 
-export type WorkflowNodeStatus = "idle" | "running" | "success" | "error";
+export type WorkflowNodeStatus = "idle" | "running" | "success" | "error" | "skipped";
 
 export type NodeInspectionMode = "overview" | "input" | "output" | "final" | "logs";
 
@@ -19,6 +19,7 @@ export type WorkflowStepKey =
   | "segmentSelection"
   | "questionGeneration"
   | "fastJury"
+  | "qualityGate"
   | "strictJury"
   | "rewrite"
   | "integrityChecks"
@@ -72,6 +73,15 @@ export type GeneratedQuestion = {
     completionTokens?: number;
     totalTokens?: number;
   };
+};
+
+export type QualityGateRoute = "approve" | "strictReview" | "rewrite" | "reject";
+
+export type QualityGateResult = {
+  route: QualityGateRoute;
+  reason: string;
+  fastJuryScore: number;
+  evidenceDecision: JudgeDecision | "unknown";
 };
 
 export type IntegrityCheckStatus = "pass" | "warning" | "fail";
@@ -144,8 +154,11 @@ export type WorkflowData = {
   generatedQuestions?: GeneratedQuestion[];
   selectedQuestion?: GeneratedQuestion;
   fastJuryResult?: JuryResult;
+  qualityGateResult?: QualityGateResult;
   strictJuryResult?: JuryResult;
   rewrittenQuestion?: RewriteResult;
+  rewriteAttempted?: boolean;
+  finalStatus?: "approved" | "rejected";
   integrityReport?: IntegrityReport;
   vreadExport?: VreadExportBundle;
   runSummary?: WorkflowRunSummary;

@@ -7,9 +7,8 @@ import type {
   WorkflowData,
   WorkflowRunSummary,
 } from "./types";
+import { GLOBAL_SCORE_PASS_THRESHOLD, GLOBAL_SCORE_WARNING_THRESHOLD } from "./qualityGate";
 
-const GLOBAL_SCORE_PASS_THRESHOLD = 75;
-const GLOBAL_SCORE_WARNING_THRESHOLD = 60;
 const MIN_SEGMENT_WORDS = 40;
 
 function normalizeText(value: string) {
