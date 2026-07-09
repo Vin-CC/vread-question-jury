@@ -260,6 +260,7 @@ export default function Home() {
         output: { metadata: body.metadata, preview: shortText(body.text) },
       });
       log(`Extracted text from ${file.name}`, "success", "textExtraction");
+      await runSequence(workflowStepKeys.slice(2));
     } catch (error) {
       const message = error instanceof Error ? error.message : "Upload extraction failed.";
       patchStep("textExtraction", { status: "error", error: message });

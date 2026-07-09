@@ -78,18 +78,19 @@ export function WorkflowCanvas({
   }));
 
   const edges: Edge[] = links.map(([source, target]) => {
-    const active = steps[source].status === "success" || steps[target].status === "running";
+    const running = steps[target].status === "running";
+    const done = steps[source].status === "success";
     const failed = steps[source].status === "error" || steps[target].status === "error";
 
     return {
       id: `${source}-${target}`,
       source,
       target,
-      animated: active && !failed,
+      animated: running && !failed,
       type: "smoothstep",
       style: {
-        stroke: failed ? "#fb7185" : active ? "#22c55e" : "#9fb6d8",
-        strokeWidth: active ? 6 : 5,
+        stroke: failed ? "#fb7185" : running || done ? "#22c55e" : "#9fb6d8",
+        strokeWidth: running || done ? 6 : 5,
         strokeDasharray: "1 15",
         strokeLinecap: "round",
       },
